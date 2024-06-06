@@ -193,6 +193,7 @@ export class AlarmTableConfig extends EntityTableConfig<AlarmInfo, TimePageLink>
 
   showAlarmDetails(entity: AlarmInfo) {
     const isPermissionWrite = this.authUser.authority !== Authority.CUSTOMER_USER || entity.customerId?.id === this.authUser.customerId;
+     //change to allow write
     this.dialog.open<AlarmDetailsDialogComponent, AlarmDetailsDialogData, boolean>
     (AlarmDetailsDialogComponent,
       {

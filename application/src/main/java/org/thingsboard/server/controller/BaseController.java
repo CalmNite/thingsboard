@@ -622,7 +622,19 @@ public abstract class BaseController {
 
     protected <E extends HasId<I> & HasTenantId, I extends EntityId> E checkEntity(SecurityUser user, E entity, Operation operation) throws ThingsboardException {
         checkNotNull(entity, "Entity not found");
-        accessControlService.checkPermission(user, Resource.of(entity.getId().getEntityType()), operation, entity.getId(), entity);
+        if (entity.getId().getEntityType().equals(EntityType.ALARM)){
+            if (((Alarm) entity).getOriginator().getEntityType().equals(EntityType.ASSET) || ((Alarm) entity).getOriginator().getEntityType().equals(EntityType.DEVICE)){
+                UUID id = ((Alarm) entity).getOriginator().getId();
+                Asset asset = assetService.findAssetById(entity.getTenantId(), new AssetId(id));
+                log.info("ASSET RETRIEVED: {}",  asset);
+                accessControlService.checkPermission(user, Resource.of(((Alarm) entity).getOriginator().getEntityType()), operation, ((Alarm) entity).getOriginator(), asset);
+            }
+            else{
+                accessControlService.checkPermission(user, Resource.of(entity.getId().getEntityType()), operation, entity.getId(), entity);
+            }
+        }else{
+            accessControlService.checkPermission(user, Resource.of(entity.getId().getEntityType()), operation, entity.getId(), entity);
+        }
         return entity;
     }
 

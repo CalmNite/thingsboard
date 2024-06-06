@@ -227,7 +227,10 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
 
     @Query(value = "SELECT a " +
             "FROM AlarmInfoEntity a " +
-            "WHERE a.tenantId = :tenantId AND a.customerId = :customerId " +
+            "LEFT JOIN AssetEntity asset ON a.originatorId = asset.id " +
+            "LEFT JOIN DeviceEntity device ON a.originatorId = device.id " +
+            "WHERE a.tenantId = :tenantId " +
+            "AND (:customerId IS NULL OR asset.assignedCustomers LIKE CONCAT( '%', :customerId, '%') OR device.assignedCustomers LIKE CONCAT( '%', :customerId, '%')) " +
             "AND (:startTime IS NULL OR a.createdTime >= :startTime) " +
             "AND (:endTime IS NULL OR a.createdTime <= :endTime) " +
             "AND ((:clearFilterEnabled) = FALSE OR a.cleared = :clearFilter) " +
@@ -239,8 +242,10 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
             ,
             countQuery = "" +
                     "SELECT count(a) " +
-                    "FROM AlarmInfoEntity a " +
-                    "WHERE a.tenantId = :tenantId AND a.customerId = :customerId " +
+                    "LEFT JOIN AssetEntity asset ON a.originatorId = asset.id " +
+                    "LEFT JOIN DeviceEntity device ON a.originatorId = device.id " +
+                    "WHERE a.tenantId = :tenantId " +
+                    "AND (:customerId IS NULL OR asset.assignedCustomers LIKE CONCAT( '%', :customerId, '%') OR device.assignedCustomers LIKE CONCAT( '%', :customerId, '%')) " +
                     "AND (:startTime IS NULL OR a.createdTime >= :startTime) " +
                     "AND (:endTime IS NULL OR a.createdTime <= :endTime) " +
                     "AND ((:clearFilterEnabled) = FALSE OR a.cleared = :clearFilter) " +
@@ -263,7 +268,10 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
 
     @Query(value = "SELECT a " +
             "FROM AlarmInfoEntity a " +
-            "WHERE a.tenantId = :tenantId AND a.customerId = :customerId " +
+            "LEFT JOIN AssetEntity asset ON a.originatorId = asset.id " +
+            "LEFT JOIN DeviceEntity device ON a.originatorId = device.id " +
+            "WHERE a.tenantId = :tenantId " +
+            "AND (:customerId IS NULL OR asset.assignedCustomers LIKE CONCAT( '%', :customerId, '%') OR device.assignedCustomers LIKE CONCAT( '%', :customerId, '%')) " +
             "AND (:startTime IS NULL OR a.createdTime >= :startTime) " +
             "AND (:endTime IS NULL OR a.createdTime <= :endTime) " +
             "AND ((:#{#alarmTypes == null} = true) OR a.type IN (:alarmTypes)) " + //HHH-15968
@@ -279,8 +287,10 @@ public interface AlarmRepository extends JpaRepository<AlarmEntity, UUID> {
             ,
             countQuery = "" +
                     "SELECT count(a) " +
-                    "FROM AlarmInfoEntity a " +
-                    "WHERE a.tenantId = :tenantId AND a.customerId = :customerId " +
+                    "LEFT JOIN AssetEntity asset ON a.originatorId = asset.id " +
+                    "LEFT JOIN DeviceEntity device ON a.originatorId = device.id " +
+                    "WHERE a.tenantId = :tenantId " +
+                    "AND (:customerId IS NULL OR asset.assignedCustomers LIKE CONCAT( '%', :customerId, '%') OR device.assignedCustomers LIKE CONCAT( '%', :customerId, '%')) " +
                     "AND (:startTime IS NULL OR a.createdTime >= :startTime) " +
                     "AND (:endTime IS NULL OR a.createdTime <= :endTime) " +
                     "AND ((:#{#alarmTypes == null} = true) OR a.type IN (:alarmTypes)) " + //HHH-15968

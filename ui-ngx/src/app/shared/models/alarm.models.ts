@@ -97,7 +97,7 @@ export const alarmSeverityColors = new Map<AlarmSeverity, string>(
 
 export interface Alarm extends BaseData<AlarmId>, HasTenantId {
   tenantId: TenantId;
-  customerId: CustomerId;
+  customerId?: CustomerId;
   assigneeId: UserId;
   type: string;
   originator: EntityId;

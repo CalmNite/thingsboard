@@ -463,7 +463,7 @@ public class UserController extends BaseController {
                 pageData = userService.findUsersByCustomerIds(tenantId, customerIds, pageLink);
             }
         } else {
-            pageData = userService.findCustomerUsers(tenantId, alarm.getCustomerId(), pageLink);
+            pageData = userService.findCustomerUsers(tenantId, currentUser.getCustomerId(), pageLink);
         }
         return pageData.mapData(user -> new UserEmailInfo(user.getId(), user.getEmail(), user.getFirstName(), user.getLastName()));
     }

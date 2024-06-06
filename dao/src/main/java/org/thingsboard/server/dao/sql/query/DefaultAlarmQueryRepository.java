@@ -318,20 +318,20 @@ public class DefaultAlarmQueryRepository implements AlarmQueryRepository {
         QueryContext ctx = new QueryContext(new QuerySecurityContext(tenantId, null, EntityType.ALARM));
 
         if (query.isSearchPropagatedAlarms()) {
-            ctx.append("select count(distinct(a.id)) from alarm_info a ");
+            ctx.append("select count(distinct(a.id)) from alarm_info a left join asset asset on a.originator_id = asset.id left join device device on a.originator_id = device.id ");
             ctx.append(JOIN_ENTITY_ALARMS);
             ctx.append("where a.tenant_id = :tenantId and ea.tenant_id = :tenantId");
             ctx.addUuidParameter("tenantId", tenantId.getId());
             if (customerId != null && !customerId.isNullUid()) {
-                ctx.append(" and a.customer_id = :customerId and ea.customer_id = :customerId");
+                ctx.append(" and (asset.assigned_customers LIKE CONCAT( '%', :customerId, '%') OR (device.assigned_customers LIKE CONCAT( '%', :customerId, '%'))");
                 ctx.addUuidParameter("customerId", customerId.getId());
             }
         } else {
-            ctx.append("select count(id) from alarm_info a ");
+            ctx.append("select count(a.id) from alarm_info a left join asset asset on a.originator_id = asset.id left join device device on a.originator_id = device.id ");
             ctx.append("where a.tenant_id = :tenantId");
             ctx.addUuidParameter("tenantId", tenantId.getId());
             if (customerId != null && !customerId.isNullUid()) {
-                ctx.append(" and a.customer_id = :customerId");
+                ctx.append(" and (asset.assigned_customers LIKE CONCAT( '%', :customerId, '%') OR (device.assigned_customers LIKE CONCAT( '%', :customerId, '%'))");
                 ctx.addUuidParameter("customerId", customerId.getId());
             }
         }
