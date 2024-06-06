@@ -23,6 +23,7 @@ import { AssetProfileId } from '@shared/models/id/asset-profile-id';
 import { RuleChainId } from '@shared/models/id/rule-chain-id';
 import { DashboardId } from '@shared/models/id/dashboard-id';
 import { EntityInfoData, HasTenantId } from '@shared/models/entity.models';
+import { ShortCustomerInfo } from './customer.model';
 
 export interface AssetProfile extends BaseData<AssetProfileId>, HasTenantId, ExportableEntity<AssetProfileId> {
   tenantId?: TenantId;
@@ -45,6 +46,7 @@ export interface AssetProfileInfo extends EntityInfoData {
 export interface Asset extends BaseData<AssetId>, HasTenantId, ExportableEntity<AssetId> {
   tenantId?: TenantId;
   customerId?: CustomerId;
+  assignedCustomers?: Array<ShortCustomerInfo>;
   name: string;
   type: string;
   label: string;
@@ -53,11 +55,43 @@ export interface Asset extends BaseData<AssetId>, HasTenantId, ExportableEntity<
 }
 
 export interface AssetInfo extends Asset {
-  customerTitle: string;
-  customerIsPublic: boolean;
+  customerTitle?: string;
+  assignedCustomers?: Array<ShortCustomerInfo>;
+  customerIsPublic?: boolean;
   assetProfileName: string;
 }
 
 export interface AssetSearchQuery extends EntitySearchQuery {
   assetTypes: Array<string>;
 }
+export interface AssetSetup extends AssetInfo {
+  assignedCustomerIds?: Array<string>;
+}
+export const isPublicAsset = (asset: AssetInfo): boolean => {
+  if (asset && asset.assignedCustomers) {
+    return asset.assignedCustomers
+      .filter(customerInfo => customerInfo.public).length > 0;
+  } else {
+    return false;
+  }
+};
+
+export const getAssetAssignedCustomersText = (asset: AssetInfo): string => {
+  if (asset && asset.assignedCustomers && asset.assignedCustomers.length > 0) {
+    return asset.assignedCustomers
+      .filter(customerInfo => !customerInfo.public)
+      .map(customerInfo => customerInfo.title)
+      .join(', ');
+  } else {
+    return '';
+  }
+};
+
+export const isCurrentPublicAssetCustomer = (asset: Asset, customerId: string): boolean => {
+  if (customerId && asset && asset.assignedCustomers) {
+    return asset.assignedCustomers.filter(customerInfo =>
+      customerInfo.public && customerId === customerInfo.customerId.id).length > 0;
+  } else {
+    return false;
+  }
+};

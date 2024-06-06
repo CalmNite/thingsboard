@@ -264,6 +264,7 @@ CREATE TABLE IF NOT EXISTS asset (
     created_time bigint NOT NULL,
     additional_info varchar,
     customer_id uuid,
+    assigned_customers varchar(1000000),
     asset_profile_id uuid NOT NULL,
     name varchar(255),
     label varchar(255),

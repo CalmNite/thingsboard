@@ -90,8 +90,8 @@ export class AssetService {
     return this.http.post<Asset>(`/api/customer/${customerId}/asset/${assetId}`, null, defaultHttpOptionsFromConfig(config));
   }
 
-  public unassignAssetFromCustomer(assetId: string, config?: RequestConfig) {
-    return this.http.delete(`/api/customer/asset/${assetId}`, defaultHttpOptionsFromConfig(config));
+  public unassignAssetFromCustomer(customerId: string,assetId: string, config?: RequestConfig) {
+    return this.http.delete(`/api/customer/${customerId}/asset/${assetId}`, defaultHttpOptionsFromConfig(config));
   }
 
   public findByQuery(query: AssetSearchQuery,
@@ -122,5 +122,30 @@ export class AssetService {
   public bulkImportAssets(entitiesData: BulkImportRequest, config?: RequestConfig): Observable<BulkImportResult> {
     return this.http.post<BulkImportResult>('/api/asset/bulk_import', entitiesData, defaultHttpOptionsFromConfig(config));
   }
+
+  public getCustomerAssets(customerId: string, pageLink: PageLink, type: string = '',
+    config?: RequestConfig): Observable<PageData<Asset>> {
+  return this.http.get<PageData<Asset>>(`/api/customer/${customerId}/assets${pageLink.toQuery()}&type=${type}`,
+  defaultHttpOptionsFromConfig(config));
+  }
+
+    public updateAssetCustomers(assetId: string, customerIds: Array<string>,
+      config?: RequestConfig): Observable<Asset> {
+  return this.http.post<Asset>(`/api/asset/${assetId}/customers`, customerIds,
+  defaultHttpOptionsFromConfig(config));
+  }
+
+  public addAssetCustomers(assetId: string, customerIds: Array<string>,
+  config?: RequestConfig): Observable<Asset> {
+  return this.http.post<Asset>(`/api/asset/${assetId}/customers/add`, customerIds,
+  defaultHttpOptionsFromConfig(config));
+  }
+
+  public removeAssetCustomers(assetId: string, customerIds: Array<string>,
+      config?: RequestConfig): Observable<Asset> {
+  return this.http.post<Asset>(`/api/asset/${assetId}/customers/remove`, customerIds,
+  defaultHttpOptionsFromConfig(config));
+  }
+
 
 }

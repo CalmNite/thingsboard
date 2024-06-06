@@ -193,6 +193,7 @@ public class ModelConstants {
     public static final String ASSET_PROFILE_DEFAULT_DASHBOARD_ID_PROPERTY = "default_dashboard_id";
     public static final String ASSET_PROFILE_DEFAULT_QUEUE_NAME_PROPERTY = "default_queue_name";
     public static final String ASSET_PROFILE_DEFAULT_EDGE_RULE_CHAIN_ID_PROPERTY = "default_edge_rule_chain_id";
+    public static final String ASSET_ASSIGNED_CUSTOMERS_PROPERTY = "assigned_customers";
 
     /**
      * Entity view constants.

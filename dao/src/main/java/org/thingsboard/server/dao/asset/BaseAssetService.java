@@ -24,6 +24,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.event.TransactionalEventListener;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntitySubtype;
 import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.StringUtils;
@@ -45,6 +46,7 @@ import org.thingsboard.server.common.data.page.PageLink;
 import org.thingsboard.server.common.data.relation.EntityRelation;
 import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
+import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.entity.AbstractCachedEntityService;
 import org.thingsboard.server.dao.entity.EntityCountService;
 import org.thingsboard.server.dao.eventsourcing.ActionEntityEvent;
@@ -76,6 +78,9 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
     public static final String INCORRECT_ASSET_PROFILE_ID = "Incorrect assetProfileId ";
     public static final String INCORRECT_CUSTOMER_ID = "Incorrect customerId ";
     public static final String INCORRECT_ASSET_ID = "Incorrect assetId ";
+
+    @Autowired
+    private CustomerDao customerDao;
 
     @Autowired
     private AssetDao assetDao;
@@ -195,11 +200,24 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
     @Override
     public Asset assignAssetToCustomer(TenantId tenantId, AssetId assetId, CustomerId customerId) {
         Asset asset = findAssetById(tenantId, assetId);
-        if (customerId.equals(asset.getCustomerId())) {
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't assign asset to non-existent customer!");
+        }
+        if (!customer.getTenantId().getId().equals(asset.getTenantId().getId())) {
+            throw new DataValidationException("Can't assign asset to customer from different tenant!");
+        }
+        if (asset.addAssignedCustomer(customer)) {
+            try {
+                createRelation(tenantId, new EntityRelation(customerId, assetId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.ASSET));
+            } catch (Exception e) {
+                log.warn("[{}] Failed to create asset relation. Customer Id: [{}]", assetId, customerId);
+                throw new RuntimeException(e);
+            }
+            return saveAsset(asset);
+        } else {
             return asset;
         }
-        asset.setCustomerId(customerId);
-        return saveAsset(asset);
     }
 
     @Override
@@ -367,7 +385,8 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         log.trace("Executing unassignCustomerAssets, tenantId [{}], customerId [{}]", tenantId, customerId);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
-        customerAssetsUnasigner.removeEntities(tenantId, customerId);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        new CustomerAssetsUnassigner(customer).removeEntities(tenantId, customer);
     }
 
     @Override
@@ -476,19 +495,6 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
         }
     };
 
-    private final PaginatedRemover<CustomerId, Asset> customerAssetsUnasigner = new PaginatedRemover<CustomerId, Asset>() {
-
-        @Override
-        protected PageData<Asset> findEntities(TenantId tenantId, CustomerId id, PageLink pageLink) {
-            return assetDao.findAssetsByTenantIdAndCustomerId(tenantId.getId(), id.getId(), pageLink);
-        }
-
-        @Override
-        protected void removeEntity(TenantId tenantId, Asset entity) {
-            unassignAssetFromCustomer(tenantId, new AssetId(entity.getId().getId()));
-        }
-    };
-
     @Override
     public Optional<HasId<?>> findEntity(TenantId tenantId, EntityId entityId) {
         return Optional.ofNullable(findAssetById(tenantId, new AssetId(entityId.getId())));
@@ -502,6 +508,87 @@ public class BaseAssetService extends AbstractCachedEntityService<AssetCacheKey,
     @Override
     public EntityType getEntityType() {
         return EntityType.ASSET;
+    }
+
+    private Asset updateAssignedCustomer(TenantId tenantId, AssetId assetId, Customer customer) {
+        Asset asset = findAssetById(tenantId, assetId);
+        if (asset.updateAssignedCustomer(customer)) {
+            return saveAsset(asset);
+        } else {
+            return asset;
+        }
+    }
+
+    @Override
+    public Asset unassignAssetFromCustomer(TenantId tenantId, AssetId assetId, CustomerId customerId) {
+        Asset asset = findAssetById(tenantId, assetId);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't unassign dashboard from non-existent customer!");
+        }
+        if (asset.removeAssignedCustomer(customer)) {
+            try {
+                deleteRelation(tenantId, new EntityRelation(customerId, assetId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.ASSET));
+            } catch (Exception e) {
+                log.warn("[{}] Failed to delete dashboard relation. Customer Id: [{}]", assetId, customerId);
+                throw new RuntimeException(e);
+            }
+            return saveAsset(asset);
+        } else {
+            return asset;
+        }
+    }
+
+    @Override
+    public void updateCustomerAssets(TenantId tenantId, CustomerId customerId) {
+        log.trace("Executing updateCustomerDashboards, customerId [{}]", customerId);
+        validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't update dashboards for non-existent customer!");
+        }
+        new CustomerAssetsUpdater(customer).removeEntities(tenantId, customer);
+    }
+
+    private class CustomerAssetsUnassigner extends PaginatedRemover<Customer, AssetInfo> {
+
+        private Customer customer;
+
+        CustomerAssetsUnassigner(Customer customer) {
+            this.customer = customer;
+        }
+
+        @Override
+        protected PageData<AssetInfo> findEntities(TenantId tenantId, Customer customer, PageLink pageLink) {
+            return assetDao.findAssetInfosByTenantIdAndCustomerId(customer.getTenantId().getId(), customer.getId().getId(), pageLink);
+        }
+
+        @Override
+        protected void removeEntity(TenantId tenantId, AssetInfo entity) {
+            unassignAssetFromCustomer(customer.getTenantId(), new AssetId(entity.getUuidId()), this.customer.getId());
+        }
+
+    }
+
+    private class CustomerAssetsUpdater extends PaginatedRemover<Customer, AssetInfo> {
+
+        private Customer customer;
+
+        CustomerAssetsUpdater(Customer customer) {
+            this.customer = customer;
+        }
+
+        @Override
+        protected PageData<AssetInfo> findEntities(TenantId tenantId, Customer customer, PageLink pageLink) {
+            return assetDao.findAssetInfosByTenantIdAndCustomerId(customer.getTenantId().getId(), customer.getId().getId(), pageLink);
+        }
+
+
+        @Override
+        protected void removeEntity(TenantId tenantId, AssetInfo entity) {
+            updateAssignedCustomer(customer.getTenantId(), new AssetId(entity.getUuidId()), this.customer);
+        }
+
     }
 
 }

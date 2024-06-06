@@ -157,6 +157,7 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
             if (!savedCustomer.isPublic()) {
                 dashboardService.updateCustomerDashboards(savedCustomer.getTenantId(), savedCustomer.getId());
             }
+            assetService.updateCustomerAssets(savedCustomer.getTenantId(), savedCustomer.getId());
             if (customer.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedCustomer.getTenantId(), EntityType.CUSTOMER);
             }
@@ -193,6 +194,7 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
                 throw new IncorrectParameterException("Unable to delete non-existent customer.");
             }
         }
+        assetService.unassignCustomerAssets(tenantId, customerId);
         dashboardService.unassignCustomerDashboards(tenantId, customerId);
         entityViewService.unassignCustomerEntityViews(customer.getTenantId(), customerId);
         assetService.unassignCustomerAssets(customer.getTenantId(), customerId);

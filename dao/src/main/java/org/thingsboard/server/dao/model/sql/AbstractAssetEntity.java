@@ -15,12 +15,17 @@
  */
 package org.thingsboard.server.dao.model.sql;
 
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+
+import org.thingsboard.common.util.JacksonUtil;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
@@ -29,7 +34,10 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.dao.model.BaseSqlEntity;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
+import org.thingsboard.server.common.data.StringUtils;
 
+
+import java.util.HashSet;
 import java.util.UUID;
 
 import static org.thingsboard.server.dao.model.ModelConstants.ASSET_CUSTOMER_ID_PROPERTY;
@@ -38,11 +46,20 @@ import static org.thingsboard.server.dao.model.ModelConstants.ASSET_NAME_PROPERT
 import static org.thingsboard.server.dao.model.ModelConstants.ASSET_TENANT_ID_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.ASSET_TYPE_PROPERTY;
 import static org.thingsboard.server.dao.model.ModelConstants.EXTERNAL_ID_PROPERTY;
+import static org.thingsboard.server.dao.model.ModelConstants.ASSET_ASSIGNED_CUSTOMERS_PROPERTY;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
 @MappedSuperclass
+@Slf4j
 public abstract class AbstractAssetEntity<T extends Asset> extends BaseSqlEntity<T> {
+
+    private static final JavaType assignedCustomersType =
+            JacksonUtil.constructCollectionType(HashSet.class, ShortCustomerInfo.class);
+
+
+    @Column(name = ASSET_ASSIGNED_CUSTOMERS_PROPERTY)
+    private String assignedCustomers;
 
     @Column(name = ASSET_TENANT_ID_PROPERTY)
     private UUID tenantId;
@@ -87,6 +104,13 @@ public abstract class AbstractAssetEntity<T extends Asset> extends BaseSqlEntity
         if (asset.getAssetProfileId() != null) {
             this.assetProfileId = asset.getAssetProfileId().getId();
         }
+        if (asset.getAssignedCustomers() != null) {
+            try {
+                this.assignedCustomers = JacksonUtil.toString(asset.getAssignedCustomers());
+            } catch (IllegalArgumentException e) {
+                log.error("Unable to serialize assigned customers to string!", e);
+            }
+        }
         this.name = asset.getName();
         this.type = asset.getType();
         this.label = asset.getLabel();
@@ -102,6 +126,7 @@ public abstract class AbstractAssetEntity<T extends Asset> extends BaseSqlEntity
         this.tenantId = assetEntity.getTenantId();
         this.customerId = assetEntity.getCustomerId();
         this.assetProfileId = assetEntity.getAssetProfileId();
+        this.setAssignedCustomers(assetEntity.getAssignedCustomers());
         this.type = assetEntity.getType();
         this.name = assetEntity.getName();
         this.label = assetEntity.getLabel();
@@ -120,6 +145,13 @@ public abstract class AbstractAssetEntity<T extends Asset> extends BaseSqlEntity
         }
         if (assetProfileId != null) {
             asset.setAssetProfileId(new AssetProfileId(assetProfileId));
+        }
+        if (!StringUtils.isEmpty(assignedCustomers)) {
+            try {
+                asset.setAssignedCustomers(JacksonUtil.fromString(assignedCustomers, assignedCustomersType));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unable to parse assigned customers!", e);
+            }
         }
         asset.setName(name);
         asset.setType(type);

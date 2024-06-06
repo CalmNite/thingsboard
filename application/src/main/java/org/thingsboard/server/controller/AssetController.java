@@ -65,6 +65,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.Set;
+import java.util.UUID;
+import java.util.HashSet;
 
 import static org.thingsboard.server.controller.ControllerConstants.ASSET_ID_PARAM_DESCRIPTION;
 import static org.thingsboard.server.controller.ControllerConstants.ASSET_INFO_DESCRIPTION;
@@ -87,6 +90,8 @@ import static org.thingsboard.server.controller.ControllerConstants.TENANT_AUTHO
 import static org.thingsboard.server.controller.ControllerConstants.TENANT_OR_CUSTOMER_AUTHORITY_PARAGRAPH;
 import static org.thingsboard.server.controller.ControllerConstants.UUID_WIKI_LINK;
 import static org.thingsboard.server.controller.EdgeController.EDGE_ID;
+import static org.thingsboard.server.controller.ControllerConstants.CUSTOMER_ID;
+
 
 @RestController
 @TbCoreComponent
@@ -162,31 +167,35 @@ public class AssetController extends BaseController {
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @RequestMapping(value = "/customer/{customerId}/asset/{assetId}", method = RequestMethod.POST)
     @ResponseBody
-    public Asset assignAssetToCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable("customerId") String strCustomerId,
+    public Asset assignAssetToCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable(CUSTOMER_ID) String strCustomerId,
                                        @Parameter(description = ASSET_ID_PARAM_DESCRIPTION) @PathVariable(ASSET_ID) String strAssetId) throws ThingsboardException {
-        checkParameter("customerId", strCustomerId);
+        checkParameter(CUSTOMER_ID, strCustomerId);
         checkParameter(ASSET_ID, strAssetId);
         CustomerId customerId = new CustomerId(toUUID(strCustomerId));
         Customer customer = checkCustomerId(customerId, Operation.READ);
+
         AssetId assetId = new AssetId(toUUID(strAssetId));
-        checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
-        return tbAssetService.assignAssetToCustomer(getTenantId(), assetId, customer, getCurrentUser());
+        Asset asset = checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
+
+        return tbAssetService.assignAssetToCustomer(asset, customer, getCurrentUser());
     }
 
     @ApiOperation(value = "Unassign asset from customer (unassignAssetFromCustomer)",
             notes = "Clears assignment of the asset to customer. Customer will not be able to query asset afterwards." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/customer/asset/{assetId}", method = RequestMethod.DELETE)
+    @RequestMapping(value = "/customer/{customerId}/asset/{assetId}", method = RequestMethod.DELETE)
     @ResponseBody
-    public Asset unassignAssetFromCustomer(@Parameter(description = ASSET_ID_PARAM_DESCRIPTION) @PathVariable(ASSET_ID) String strAssetId) throws ThingsboardException {
-        checkParameter(ASSET_ID, strAssetId);
+    public Asset unassignAssetFromCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable(CUSTOMER_ID) String strCustomerId,
+                                           @Parameter(description = ASSET_ID_PARAM_DESCRIPTION) @PathVariable(ASSET_ID) String strAssetId) throws ThingsboardException {
+        
+                                            checkParameter(ASSET_ID, strAssetId);
         AssetId assetId = new AssetId(toUUID(strAssetId));
         Asset asset = checkAssetId(assetId, Operation.UNASSIGN_FROM_CUSTOMER);
         if (asset.getCustomerId() == null || asset.getCustomerId().getId().equals(ModelConstants.NULL_UUID)) {
             throw new IncorrectParameterException("Asset isn't assigned to any customer!");
         }
         Customer customer = checkCustomerId(asset.getCustomerId(), Operation.READ);
-        return tbAssetService.unassignAssetToCustomer(getTenantId(), assetId, customer, getCurrentUser());
+        return tbAssetService.unassignAssetFromCustomer(asset, customer, getCurrentUser());
     }
 
     @ApiOperation(value = "Make asset publicly available (assignAssetToPublicCustomer)",
@@ -200,7 +209,79 @@ public class AssetController extends BaseController {
         checkParameter(ASSET_ID, strAssetId);
         AssetId assetId = new AssetId(toUUID(strAssetId));
         checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
-        return tbAssetService.assignAssetToPublicCustomer(getTenantId(), assetId, getCurrentUser());
+        Asset asset = checkAssetId(assetId, Operation.UNASSIGN_FROM_CUSTOMER);
+        return tbAssetService.assignAssetToPublicCustomer(asset, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Update the Asset Customers (updateAssetCustomers)",
+            notes = "Updates the list of Customers that this Asset is assigned to. Removes previous assignments to customers that are not in the provided list. " +
+                    "Returns the Asset object. " + TENANT_AUTHORITY_PARAGRAPH)
+
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/asset/{assetId}/customers", method = RequestMethod.POST)
+    @ResponseBody
+    public Asset updateAssetCustomers(
+            @Parameter(description = ASSET_ID_PARAM_DESCRIPTION)
+            @PathVariable(ASSET_ID) String strAssetId,
+            @Parameter(description = "JSON array with the list of customer ids, or empty to remove all customers")
+            @RequestBody(required = false) String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(ASSET_ID, strAssetId);
+        AssetId assetId = new AssetId(toUUID(strAssetId));
+        Asset asset = checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbAssetService.updateAssetCustomers(asset, customerIds, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Adds the Asset Customers (addAssetCustomers)",
+            notes = "Adds the list of Customers to the existing list of assignments for the Asset. Keeps previous assignments to customers that are not in the provided list. " +
+                    "Returns the Asset object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/asset/{assetId}/customers/add", method = RequestMethod.POST)
+    @ResponseBody
+    public Asset addAssetCustomers(
+            @Parameter(description = ASSET_ID_PARAM_DESCRIPTION)
+            @PathVariable(ASSET_ID) String strAssetId,
+            @Parameter(description = "JSON array with the list of customer ids")
+            @RequestBody String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(ASSET_ID, strAssetId);
+        AssetId assetId = new AssetId(toUUID(strAssetId));
+        Asset asset = checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbAssetService.addAssetCustomers(asset, customerIds, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Remove the Asset Customers (removeAssetCustomers)",
+            notes = "Removes the list of Customers from the existing list of assignments for the Asset. Keeps other assignments to customers that are not in the provided list. " +
+                    "Returns the Asset object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/asset/{assetId}/customers/remove", method = RequestMethod.POST)
+    @ResponseBody
+    public Asset removeAssetCustomers(
+            @Parameter(description = ASSET_ID_PARAM_DESCRIPTION)
+            @PathVariable(ASSET_ID) String strAssetId,
+            @Parameter(description = "JSON array with the list of customer ids")
+            @RequestBody String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(ASSET_ID, strAssetId);
+        AssetId assetId = new AssetId(toUUID(strAssetId));
+        Asset asset = checkAssetId(assetId, Operation.UNASSIGN_FROM_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbAssetService.removeAssetCustomers(asset, customerIds, getCurrentUser());
+    }
+
+
+    @ApiOperation(value = "Unassign the Asset from Public Customer (unassignAssetFromPublicCustomer)",
+            notes = "Unassigns the asset from a special, auto-generated 'Public' Customer. Once unassigned, unauthenticated users may no longer browse the asset. " +
+                    "Returns the Asset object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/customer/public/asset/{assetId}", method = RequestMethod.DELETE)
+    @ResponseBody
+    public Asset unassignAssetFromPublicCustomer(
+            @Parameter(description = ASSET_ID_PARAM_DESCRIPTION)
+            @PathVariable(ASSET_ID) String strAssetId) throws ThingsboardException {
+        checkParameter(ASSET_ID, strAssetId);
+        AssetId assetId = new AssetId(toUUID(strAssetId));
+        Asset asset = checkAssetId(assetId, Operation.UNASSIGN_FROM_CUSTOMER);
+        return tbAssetService.unassignAssetFromPublicCustomer(asset, getCurrentUser());
     }
 
     @ApiOperation(value = "Get Tenant Assets (getTenantAssets)",
@@ -285,7 +366,7 @@ public class AssetController extends BaseController {
     @ResponseBody
     public PageData<Asset> getCustomerAssets(
             @Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION)
-            @PathVariable("customerId") String strCustomerId,
+            @PathVariable(CUSTOMER_ID) String strCustomerId,
             @Parameter(description = PAGE_SIZE_DESCRIPTION)
             @RequestParam int pageSize,
             @Parameter(description = PAGE_NUMBER_DESCRIPTION)
@@ -298,7 +379,7 @@ public class AssetController extends BaseController {
             @RequestParam(required = false) String sortProperty,
             @Parameter(description = SORT_ORDER_DESCRIPTION, schema = @Schema(allowableValues = {"ASC", "DESC"}))
             @RequestParam(required = false) String sortOrder) throws ThingsboardException {
-        checkParameter("customerId", strCustomerId);
+        checkParameter(CUSTOMER_ID, strCustomerId);
         TenantId tenantId = getCurrentUser().getTenantId();
         CustomerId customerId = new CustomerId(toUUID(strCustomerId));
         checkCustomerId(customerId, Operation.READ);
@@ -513,6 +594,17 @@ public class AssetController extends BaseController {
     public BulkImportResult<Asset> processAssetsBulkImport(@RequestBody BulkImportRequest request) throws Exception {
         SecurityUser user = getCurrentUser();
         return assetBulkImportService.processBulkImport(request, user);
+    }
+
+    private Set<CustomerId> customerIdFromStr(String[] strCustomerIds) {
+        Set<CustomerId> customerIds = new HashSet<>();
+        if (strCustomerIds != null) {
+            for (String strCustomerId : strCustomerIds) {
+                customerIds.add(new CustomerId(UUID.fromString(strCustomerId)));
+            }
+        }
+        log.warn("CUSTOMER IDS LIST RECIVED");
+        return customerIds;
     }
 
 }

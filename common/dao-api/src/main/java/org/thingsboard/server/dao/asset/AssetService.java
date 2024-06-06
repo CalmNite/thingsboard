@@ -43,6 +43,8 @@ public interface AssetService extends EntityDaoService {
 
     ListenableFuture<Asset> findAssetByTenantIdAndNameAsync(TenantId tenantId, String name);
 
+    Asset unassignAssetFromCustomer(TenantId tenantId, AssetId assetId, CustomerId customerId);
+
     Asset saveAsset(Asset asset, boolean doValidate);
 
     Asset saveAsset(Asset asset);
@@ -50,6 +52,8 @@ public interface AssetService extends EntityDaoService {
     Asset assignAssetToCustomer(TenantId tenantId, AssetId assetId, CustomerId customerId);
 
     Asset unassignAssetFromCustomer(TenantId tenantId, AssetId assetId);
+
+    void updateCustomerAssets(TenantId tenantId, CustomerId customerId);
 
     void deleteAsset(TenantId tenantId, AssetId assetId);
 

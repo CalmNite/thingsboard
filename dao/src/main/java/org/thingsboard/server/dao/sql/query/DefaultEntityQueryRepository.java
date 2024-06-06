@@ -576,6 +576,17 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     private String defaultPermissionQuery(QueryContext ctx) {
+        if (ctx.getEntityType() == EntityType.DASHBOARD || ctx.getEntityType() == EntityType.ASSET){
+            ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
+            if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
+                ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
+                
+                return "e.tenant_id=:permissions_tenant_id and e.assigned_customers LIKE '%' || :permissions_customer_id || '%'";
+                
+            } else {
+                return "e.tenant_id=:permissions_tenant_id";
+            }
+        }else{
         ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
         if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
             ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
@@ -589,6 +600,7 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
         } else {
             return "e.tenant_id=:permissions_tenant_id";
         }
+    }
     }
 
     private String buildEntityFilterQuery(QueryContext ctx, EntityFilter entityFilter) {

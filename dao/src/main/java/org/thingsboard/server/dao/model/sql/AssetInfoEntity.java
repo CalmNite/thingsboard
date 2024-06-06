@@ -28,13 +28,6 @@ import java.util.Map;
 public class AssetInfoEntity extends AbstractAssetEntity<AssetInfo> {
 
     public static final Map<String,String> assetInfoColumnMap = new HashMap<>();
-    static {
-        assetInfoColumnMap.put("customerTitle", "c.title");
-        assetInfoColumnMap.put("assetProfileName", "p.name");
-    }
-
-    private String customerTitle;
-    private boolean customerIsPublic;
     private String assetProfileName;
 
     public AssetInfoEntity() {
@@ -42,21 +35,13 @@ public class AssetInfoEntity extends AbstractAssetEntity<AssetInfo> {
     }
 
     public AssetInfoEntity(AssetEntity assetEntity,
-                           String customerTitle,
-                           Object customerAdditionalInfo,
                            String assetProfileName) {
         super(assetEntity);
-        this.customerTitle = customerTitle;
-        if (customerAdditionalInfo != null && ((JsonNode)customerAdditionalInfo).has("isPublic")) {
-            this.customerIsPublic = ((JsonNode)customerAdditionalInfo).get("isPublic").asBoolean();
-        } else {
-            this.customerIsPublic = false;
-        }
         this.assetProfileName = assetProfileName;
     }
 
     @Override
     public AssetInfo toData() {
-        return new AssetInfo(super.toAsset(), customerTitle, customerIsPublic, assetProfileName);
+        return new AssetInfo(super.toAsset(), assetProfileName);
     }
 }

@@ -33,9 +33,8 @@ import java.util.UUID;
  */
 public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, ExportableEntityRepository<AssetEntity> {
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.id = :assetId")
     AssetInfoEntity findAssetInfoById(@Param("assetId") UUID assetId);
@@ -48,24 +47,21 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
                                      @Param("textSearch") String textSearch,
                                      Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.tenantId = :tenantId " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true  " +
             "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(p.name, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true)")
+            "  OR ilike(p.name, CONCAT('%', :textSearch, '%')) = true )")
     Page<AssetInfoEntity> findAssetInfosByTenantId(@Param("tenantId") UUID tenantId,
                                                    @Param("textSearch") String textSearch,
                                                    Pageable pageable);
 
-    @Query("SELECT a FROM AssetEntity a WHERE a.tenantId = :tenantId " +
-            "AND a.customerId = :customerId " +
-            "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(a.type, CONCAT('%', :textSearch, '%')) = true)")
+    @Query("SELECT a FROM AssetEntity a, RelationEntity re WHERE a.tenantId = :tenantId " +
+           "AND a.id = re.toId AND re.toType = 'ASSET' AND re.relationTypeGroup = 'ASSET' " +
+           "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
+           "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true)")
     Page<AssetEntity> findByTenantIdAndCustomerId(@Param("tenantId") UUID tenantId,
                                                   @Param("customerId") UUID customerId,
                                                   @Param("textSearch") String textSearch,
@@ -80,20 +76,19 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
                                                  @Param("searchText") String searchText,
                                                  Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
-            "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
-            "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
-            "WHERE a.tenantId = :tenantId " +
-            "AND a.customerId = :customerId " +
-            "AND (:searchText IS NULL OR ilike(a.name, CONCAT('%', :searchText, '%')) = true " +
-            "  OR ilike(a.label, CONCAT('%', :searchText, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :searchText, '%')) = true " +
-            "  OR ilike(p.name, CONCAT('%', :searchText, '%')) = true) ")
-    Page<AssetInfoEntity> findAssetInfosByTenantIdAndCustomerId(@Param("tenantId") UUID tenantId,
+   @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
+          "FROM AssetEntity a " +
+          "JOIN RelationEntity re ON a.id = re.toId " +
+          "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
+          "WHERE a.tenantId = :tenantId " +
+          "AND a.id = re.toId AND re.toType = 'ASSET' AND re.relationTypeGroup = 'ASSET' " +
+           "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
+          "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true)")
+   Page<AssetInfoEntity> findAssetInfosByTenantIdAndCustomerId( @Param("tenantId") UUID tenantId,
                                                                 @Param("customerId") UUID customerId,
-                                                                @Param("searchText") String searchText,
+                                                                @Param("textSearch") String textSearch,
                                                                 Pageable pageable);
+                                          
 
     List<AssetEntity> findByTenantIdAndIdIn(UUID tenantId, List<UUID> assetIds);
 
@@ -110,29 +105,25 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
                                             @Param("textSearch") String textSearch,
                                             Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.tenantId = :tenantId " +
             "AND a.type = :type " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true  " +
-            "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true) ")
+            "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true ) ")
     Page<AssetInfoEntity> findAssetInfosByTenantIdAndType(@Param("tenantId") UUID tenantId,
                                                           @Param("type") String type,
                                                           @Param("textSearch") String textSearch,
                                                           Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.tenantId = :tenantId " +
             "AND a.assetProfileId = :assetProfileId " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true  " +
             "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true " +
             "  OR ilike(a.type, CONCAT('%', :textSearch, '%')) = true) ")
     Page<AssetInfoEntity> findAssetInfosByTenantIdAndAssetProfileId(@Param("tenantId") UUID tenantId,
                                                                     @Param("assetProfileId") UUID assetProfileId,
@@ -140,9 +131,11 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
                                                                     Pageable pageable);
 
 
-    @Query("SELECT a FROM AssetEntity a WHERE a.tenantId = :tenantId " +
-            "AND a.customerId = :customerId AND a.type = :type " +
-            "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
+    @Query("SELECT a FROM AssetEntity a, RelationEntity re WHERE a.tenantId = :tenantId " +
+           "AND a.id = re.toId AND re.toType = 'ASSET' AND re.relationTypeGroup = 'ASSET' " +
+           "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' "  + 
+           "AND a.type = :type " +
+           "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
             "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true) ")
     Page<AssetEntity> findByTenantIdAndCustomerIdAndType(@Param("tenantId") UUID tenantId,
                                                          @Param("customerId") UUID customerId,
@@ -150,32 +143,32 @@ public interface AssetRepository extends JpaRepository<AssetEntity, UUID>, Expor
                                                          @Param("textSearch") String textSearch,
                                                          Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
+            "JOIN RelationEntity re ON a.id = re.toId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.tenantId = :tenantId " +
-            "AND a.customerId = :customerId " +
+            "AND a.id = re.toId AND re.toType = 'ASSET' AND re.relationTypeGroup = 'ASSET' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
             "AND a.type = :type " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true) ")
+            "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true) ")
     Page<AssetInfoEntity> findAssetInfosByTenantIdAndCustomerIdAndType(@Param("tenantId") UUID tenantId,
                                                                        @Param("customerId") UUID customerId,
                                                                        @Param("type") String type,
                                                                        @Param("textSearch") String textSearch,
                                                                        Pageable pageable);
 
-    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, c.title, c.additionalInfo, p.name) " +
+    @Query("SELECT new org.thingsboard.server.dao.model.sql.AssetInfoEntity(a, p.name) " +
             "FROM AssetEntity a " +
-            "LEFT JOIN CustomerEntity c on c.id = a.customerId " +
+            "JOIN RelationEntity re ON a.id = re.toId " +
             "LEFT JOIN AssetProfileEntity p on p.id = a.assetProfileId " +
             "WHERE a.tenantId = :tenantId " +
-            "AND a.customerId = :customerId " +
+            "AND a.id = re.toId AND re.toType = 'ASSET' AND re.relationTypeGroup = 'ASSET' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
             "AND a.assetProfileId = :assetProfileId " +
             "AND (:textSearch IS NULL OR ilike(a.name, CONCAT('%', :textSearch, '%')) = true " +
             "  OR ilike(a.label, CONCAT('%', :textSearch, '%')) = true " +
-            "  OR ilike(c.title, CONCAT('%', :textSearch, '%')) = true " +
             "  OR ilike(a.type, CONCAT('%', :textSearch, '%')) = true) ")
     Page<AssetInfoEntity> findAssetInfosByTenantIdAndCustomerIdAndAssetProfileId(@Param("tenantId") UUID tenantId,
                                                                                  @Param("customerId") UUID customerId,

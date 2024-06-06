@@ -17,14 +17,17 @@ package org.thingsboard.server.common.data.asset;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.validation.Valid;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
 import lombok.Setter;
 import org.thingsboard.server.common.data.BaseDataWithAdditionalInfo;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.ExportableEntity;
 import org.thingsboard.server.common.data.HasCustomerId;
 import org.thingsboard.server.common.data.HasLabel;
 import org.thingsboard.server.common.data.HasTenantId;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.AssetProfileId;
 import org.thingsboard.server.common.data.id.CustomerId;
@@ -32,7 +35,9 @@ import org.thingsboard.server.common.data.id.TenantId;
 import org.thingsboard.server.common.data.validation.Length;
 import org.thingsboard.server.common.data.validation.NoXss;
 
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Schema
 @EqualsAndHashCode(callSuper = true)
@@ -42,6 +47,8 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
 
     private TenantId tenantId;
     private CustomerId customerId;
+    @Valid
+    private Set<ShortCustomerInfo> assignedCustomers;
     @NoXss
     @Length(fieldName = "name")
     private String name;
@@ -73,6 +80,7 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
         this.type = asset.getType();
         this.label = asset.getLabel();
         this.assetProfileId = asset.getAssetProfileId();
+        this.assignedCustomers = asset.getAssignedCustomers();
         this.externalId = asset.getExternalId();
     }
 
@@ -82,6 +90,7 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
         this.name = asset.getName();
         this.type = asset.getType();
         this.label = asset.getLabel();
+        this.assignedCustomers = asset.getAssignedCustomers();
         this.assetProfileId = asset.getAssetProfileId();
         Optional.ofNullable(asset.getAdditionalInfo()).ifPresent(this::setAdditionalInfo);
         this.externalId = asset.getExternalId();
@@ -118,6 +127,65 @@ public class Asset extends BaseDataWithAdditionalInfo<AssetId> implements HasLab
 
     public void setCustomerId(CustomerId customerId) {
         this.customerId = customerId;
+    }
+
+    
+    public Set<ShortCustomerInfo> getAssignedCustomers() {
+        return assignedCustomers;
+    }
+
+    public void setAssignedCustomers(Set<ShortCustomerInfo> assignedCustomers) {
+        this.assignedCustomers = assignedCustomers;
+    }
+    
+    
+    public boolean isAssignedToCustomer(CustomerId customerId) {
+        return this.assignedCustomers != null && this.assignedCustomers.contains(new ShortCustomerInfo(customerId, null, false));
+    }
+
+    public ShortCustomerInfo getAssignedCustomerInfo(CustomerId customerId) {
+        if (this.assignedCustomers != null) {
+            for (ShortCustomerInfo customerInfo : this.assignedCustomers) {
+                if (customerInfo.getCustomerId().equals(customerId)) {
+                    return customerInfo;
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean addAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            return false;
+        } else {
+            if (this.assignedCustomers == null) {
+                this.assignedCustomers = new HashSet<>();
+            }
+            this.assignedCustomers.add(customerInfo);
+            return true;
+        }
+    }
+
+    public boolean updateAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            this.assignedCustomers.remove(customerInfo);
+            this.assignedCustomers.add(customerInfo);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean removeAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            this.assignedCustomers.remove(customerInfo);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Unique Asset Name in scope of Tenant", example = "Empire State Building")

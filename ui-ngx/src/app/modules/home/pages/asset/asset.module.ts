@@ -23,12 +23,14 @@ import { AssetTableHeaderComponent } from './asset-table-header.component';
 import { AssetRoutingModule } from './asset-routing.module';
 import { HomeComponentsModule } from '@modules/home/components/home-components.module';
 import { AssetTabsComponent } from '@home/pages/asset/asset-tabs.component';
+import { ManageAssetCustomersDialogComponent } from './manage-asset-customers-dialog.component';
 
 @NgModule({
   declarations: [
     AssetComponent,
     AssetTabsComponent,
-    AssetTableHeaderComponent
+    AssetTableHeaderComponent,
+    ManageAssetCustomersDialogComponent
   ],
   imports: [
     CommonModule,

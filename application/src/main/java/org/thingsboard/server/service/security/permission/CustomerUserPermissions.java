@@ -23,6 +23,8 @@ import org.thingsboard.server.common.data.ResourceType;
 import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.asset.Asset;
+import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TbResourceId;
@@ -36,7 +38,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
     public CustomerUserPermissions() {
         super();
         put(Resource.ALARM, customerAlarmPermissionChecker);
-        put(Resource.ASSET, customerEntityPermissionChecker);
+        put(Resource.ASSET, customerAssetPermissionChecker);
         put(Resource.DEVICE, customerEntityPermissionChecker);
         put(Resource.CUSTOMER, customerPermissionChecker);
         put(Resource.DASHBOARD, customerDashboardPermissionChecker);
@@ -64,7 +66,23 @@ public class CustomerUserPermissions extends AbstractPermissions {
             return user.getCustomerId().equals(((HasCustomerId) entity).getCustomerId());
         }
     };
+    private static final PermissionChecker customerAssetPermissionChecker =
+            new PermissionChecker.GenericPermissionChecker<AssetId, Asset>(Operation.READ, Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY, 
+            Operation.WRITE, Operation.WRITE_ATTRIBUTES, Operation.WRITE_TELEMETRY) {
 
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation, AssetId assetId, Asset asset) {
+                    if (!super.hasPermission(user, operation, assetId, asset)) {
+                        return false;
+                    }
+                    if (!user.getTenantId().equals(asset.getTenantId())) {
+                        return false;
+                    }
+                    return asset.isAssignedToCustomer(user.getCustomerId());
+                      
+                }
+
+            };
     private static final PermissionChecker customerEntityPermissionChecker =
             new PermissionChecker.GenericPermissionChecker(Operation.READ, Operation.READ_CREDENTIALS,
                     Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY, Operation.RPC_CALL, Operation.CLAIM_DEVICES,

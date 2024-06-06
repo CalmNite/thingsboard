@@ -23,8 +23,9 @@ import { EntityType } from '@shared/models/entity-type.models';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
 import { ActionNotificationShow } from '@core/notification/notification.actions';
 import { TranslateService } from '@ngx-translate/core';
-import { AssetInfo } from '@app/shared/models/asset.models';
+import { AssetInfo, getAssetAssignedCustomersText, isPublicAsset } from '@app/shared/models/asset.models';
 import { EntityTableConfig } from '@home/models/entity/entities-table-config.models';
+import { isEqual } from '@app/core/utils';
 
 @Component({
   selector: 'tb-asset',
@@ -34,6 +35,7 @@ import { EntityTableConfig } from '@home/models/entity/entities-table-config.mod
 export class AssetComponent extends EntityComponent<AssetInfo> {
 
   entityType = EntityType;
+  assignedCustomersText: string;
 
   assetScope: 'tenant' | 'customer' | 'customer_user' | 'edge';
 
@@ -50,7 +52,9 @@ export class AssetComponent extends EntityComponent<AssetInfo> {
     this.assetScope = this.entitiesTableConfig.componentsData.assetScope;
     super.ngOnInit();
   }
-
+  isPublic(entity: AssetInfo): boolean {
+    return isPublicAsset(entity);
+  }
   hideDelete() {
     if (this.entitiesTableConfig) {
       return !this.entitiesTableConfig.deleteEnabled(this.entity);
@@ -64,12 +68,13 @@ export class AssetComponent extends EntityComponent<AssetInfo> {
   }
 
   buildForm(entity: AssetInfo): UntypedFormGroup {
-    return this.fb.group(
+    this.updateFields(entity);
+    const form = this.fb.group(
       {
         name: [entity ? entity.name : '', [Validators.required, Validators.maxLength(255)]],
         assetProfileId: [entity ? entity.assetProfileId : null, [Validators.required]],
         label: [entity ? entity.label : '', Validators.maxLength(255)],
-        customerId: [entity ? entity.customerId : ''],
+        
         additionalInfo: this.fb.group(
           {
             description: [entity && entity.additionalInfo ? entity.additionalInfo.description : ''],
@@ -77,13 +82,18 @@ export class AssetComponent extends EntityComponent<AssetInfo> {
         )
       }
     );
+    if (this.isAdd) {
+      form.addControl('assignedCustomerIds', this.fb.control([]));
+    }
+    return form;
   }
 
   updateForm(entity: AssetInfo) {
+    this.updateFields(entity);
     this.entityForm.patchValue({name: entity.name});
     this.entityForm.patchValue({assetProfileId: entity.assetProfileId});
     this.entityForm.patchValue({label: entity.label});
-    this.entityForm.patchValue({customerId: entity.customerId});
+    //this.entityForm.patchValue({customerId: entity.customerId});
     this.entityForm.patchValue({additionalInfo: {description: entity.additionalInfo ? entity.additionalInfo.description : ''}});
   }
 
@@ -101,5 +111,11 @@ export class AssetComponent extends EntityComponent<AssetInfo> {
 
   onAssetProfileUpdated() {
     this.entitiesTableConfig.updateData(false);
+  }
+
+  private updateFields(entity: AssetInfo): void {
+    if (entity && !isEqual(entity, {})) {
+      this.assignedCustomersText = getAssetAssignedCustomersText(entity);
+    }
   }
 }

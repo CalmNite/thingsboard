@@ -15,12 +15,15 @@
  */
 package org.thingsboard.server.service.entitiy.asset;
 
+import java.util.Set;
+
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
 import org.thingsboard.server.common.data.id.AssetId;
+import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.TenantId;
 
 public interface TbAssetService {
@@ -29,12 +32,20 @@ public interface TbAssetService {
 
     void delete(Asset asset, User user);
 
-    Asset assignAssetToCustomer(TenantId tenantId, AssetId assetId, Customer customer, User user) throws ThingsboardException;
+    Asset assignAssetToCustomer(Asset asset, Customer customer, User user) throws ThingsboardException;
 
-    Asset unassignAssetToCustomer(TenantId tenantId, AssetId assetId, Customer customer, User user) throws ThingsboardException;
+    Asset unassignAssetFromCustomer(Asset asset, Customer customer, User user) throws ThingsboardException;
 
-    Asset assignAssetToPublicCustomer(TenantId tenantId, AssetId assetId, User user) throws ThingsboardException;
+    Asset assignAssetToPublicCustomer(Asset asset, User user) throws ThingsboardException;
 
+    Asset unassignAssetFromPublicCustomer(Asset asset, User user) throws ThingsboardException;
+
+    Asset updateAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException;
+
+    Asset addAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException;
+
+    Asset removeAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException;
+    
     Asset assignAssetToEdge(TenantId tenantId, AssetId assetId, Edge edge, User user) throws ThingsboardException;
 
     Asset unassignAssetFromEdge(TenantId tenantId, Asset asset, Edge edge, User user) throws ThingsboardException;

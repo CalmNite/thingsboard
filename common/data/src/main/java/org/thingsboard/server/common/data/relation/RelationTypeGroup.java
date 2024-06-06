@@ -16,7 +16,7 @@
 package org.thingsboard.server.common.data.relation;
 
 public enum RelationTypeGroup {
-
+    ASSET,
     COMMON,
     DASHBOARD,
     RULE_CHAIN,

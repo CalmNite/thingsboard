@@ -50,7 +50,7 @@ import {
   AddEntitiesToCustomerDialogComponent,
   AddEntitiesToCustomerDialogData
 } from '../../dialogs/add-entities-to-customer-dialog.component';
-import { Asset, AssetInfo } from '@app/shared/models/asset.models';
+import { Asset, AssetInfo, getAssetAssignedCustomersText, isPublicAsset } from '@app/shared/models/asset.models';
 import { AssetService } from '@app/core/http/asset.service';
 import { AssetComponent } from '@modules/home/pages/asset/asset.component';
 import { AssetTableHeaderComponent } from '@modules/home/pages/asset/asset-table-header.component';
@@ -63,6 +63,7 @@ import {
   AddEntitiesToEdgeDialogComponent,
   AddEntitiesToEdgeDialogData
 } from '@home/dialogs/add-entities-to-edge-dialog.component';
+import { ManageAssetCustomersActionType, ManageAssetCustomersDialogComponent, ManageAssetCustomersDialogData } from './manage-asset-customers-dialog.component';
 
 @Injectable()
 export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<AssetInfo>> {
@@ -170,11 +171,10 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
     ];
     if (assetScope === 'tenant') {
       columns.push(
-        new EntityTableColumn<AssetInfo>('customerTitle', 'customer.customer', '25%'),
+        new EntityTableColumn<AssetInfo>('customersTitle', 'asset.assigned-customers',
+        '25%', entity => getAssetAssignedCustomersText(entity), () => ({}), false),
         new EntityTableColumn<AssetInfo>('customerIsPublic', 'asset.public', '60px',
-          entity => {
-            return checkBoxCell(entity.customerIsPublic);
-          }, () => ({}), false),
+          entity => checkBoxCell(isPublicAsset(entity)), () => ({}), false),
       );
     }
     return columns;
@@ -193,7 +193,7 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       this.config.entitiesFetchFunction = pageLink =>
         this.assetService.getCustomerAssetInfosByAssetProfileId(this.customerId, pageLink,
           this.config.componentsData.assetProfileId !== null ? this.config.componentsData.assetProfileId.id : '');
-      this.config.deleteEntity = id => this.assetService.unassignAssetFromCustomer(id.id);
+          this.config.deleteEntity = id => this.assetService.unassignAssetFromCustomer(this.config.componentsData.customerId, id.id);
     }
   }
 
@@ -208,27 +208,15 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
           onAction: ($event, entity) => this.makePublic($event, entity)
         },
         {
-          name: this.translate.instant('asset.assign-to-customer'),
+          name: this.translate.instant('asset.manage-assigned-customers'),
           icon: 'assignment_ind',
           isEnabled: (entity) => (!entity.customerId || entity.customerId.id === NULL_UUID),
-          onAction: ($event, entity) => this.assignToCustomer($event, [entity.id])
-        },
-        {
-          name: this.translate.instant('asset.unassign-from-customer'),
-          icon: 'assignment_return',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && !entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
-        },
-        {
-          name: this.translate.instant('asset.make-private'),
-          icon: 'reply',
-          isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
-          onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
+          onAction: ($event, entity) => this.manageAssignedCustomers($event, entity)
         }
       );
     }
     if (assetScope === 'customer') {
-      actions.push(
+      /*actions.push(
         {
           name: this.translate.instant('asset.unassign-from-customer'),
           icon: 'assignment_return',
@@ -241,7 +229,7 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
           isEnabled: (entity) => (entity.customerId && entity.customerId.id !== NULL_UUID && entity.customerIsPublic),
           onAction: ($event, entity) => this.unassignFromCustomer($event, entity)
         }
-      );
+      );*/
     }
     if (assetScope === 'edge') {
       actions.push(
@@ -267,16 +255,24 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
           onAction: ($event, entities) => this.assignToCustomer($event, entities.map((entity) => entity.id))
         }
       );
-    }
-    if (assetScope === 'customer') {
       actions.push(
         {
           name: this.translate.instant('asset.unassign-assets'),
           icon: 'assignment_return',
           isEnabled: true,
-          onAction: ($event, entities) => this.unassignAssetsFromCustomer($event, entities)
+          onAction: ($event, entities) => this.unassignAssetsFromCustomers($event, entities.map((entity) => entity.id.id))
         }
       );
+    }
+    if (assetScope === 'customer') {
+      /*actions.push(
+        {
+          name: this.translate.instant('asset.unassign-assets'),
+          icon: 'assignment_return',
+          isEnabled: true,
+          onAction: ($event, entities) => this.unassignAssetsFromCustomers($event, entities)
+        }
+      );*/
     }
     if (assetScope === 'edge') {
       actions.push(
@@ -411,7 +407,7 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       });
   }
 
-  unassignFromCustomer($event: Event, asset: AssetInfo) {
+  unassignFromCustomer($event: Event, asset: AssetInfo, customerId: string) {
     if ($event) {
       $event.stopPropagation();
     }
@@ -433,37 +429,9 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       true
     ).subscribe((res) => {
         if (res) {
-          this.assetService.unassignAssetFromCustomer(asset.id.id).subscribe(
+          this.assetService.unassignAssetFromCustomer(customerId, asset.id.id).subscribe(
             () => {
               this.config.updateData(this.config.componentsData.assetScope !== 'tenant');
-            }
-          );
-        }
-      }
-    );
-  }
-
-  unassignAssetsFromCustomer($event: Event, assets: Array<AssetInfo>) {
-    if ($event) {
-      $event.stopPropagation();
-    }
-    this.dialogService.confirm(
-      this.translate.instant('asset.unassign-assets-title', {count: assets.length}),
-      this.translate.instant('asset.unassign-assets-text'),
-      this.translate.instant('action.no'),
-      this.translate.instant('action.yes'),
-      true
-    ).subscribe((res) => {
-        if (res) {
-          const tasks: Observable<any>[] = [];
-          assets.forEach(
-            (asset) => {
-              tasks.push(this.assetService.unassignAssetFromCustomer(asset.id.id));
-            }
-          );
-          forkJoin(tasks).subscribe(
-            () => {
-              this.config.updateData();
             }
           );
         }
@@ -483,7 +451,7 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
         this.assignToCustomer(action.event, [action.entity.id]);
         return true;
       case 'unassignFromCustomer':
-        this.unassignFromCustomer(action.event, action.entity);
+        this.unassignFromCustomer(action.event, action.entity, this.config.componentsData.customerId);
         return true;
       case 'unassignFromEdge':
         this.unassignFromEdge(action.event, action.entity);
@@ -491,7 +459,6 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
     }
     return false;
   }
-
   addAssetsToEdge($event: Event) {
     if ($event) {
       $event.stopPropagation();
@@ -511,7 +478,6 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
         }
       });
   }
-
   unassignFromEdge($event: Event, asset: AssetInfo) {
     if ($event) {
       $event.stopPropagation();
@@ -533,7 +499,6 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       }
     );
   }
-
   unassignAssetsFromEdge($event: Event, assets: Array<AssetInfo>) {
     if ($event) {
       $event.stopPropagation();
@@ -561,5 +526,37 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       }
     );
   }
-
+  manageAssignedCustomers($event: Event, asset: AssetInfo) {
+    const assignedCustomersIds = asset.assignedCustomers ?
+    asset.assignedCustomers.map(customerInfo => customerInfo.customerId.id) : [];
+    this.showManageAssignedCustomersDialog($event, [asset.id.id], 'manage', assignedCustomersIds);
+  }
+  showManageAssignedCustomersDialog($event: Event, assetsIds: Array<string>,
+      actionType: ManageAssetCustomersActionType,
+      assignedCustomersIds?: Array<string>) {
+      if ($event) {
+      $event.stopPropagation();
+      }
+      this.dialog.open<ManageAssetCustomersDialogComponent, ManageAssetCustomersDialogData,
+      boolean>(ManageAssetCustomersDialogComponent, {
+      disableClose: true,
+      panelClass: ['tb-dialog', 'tb-fullscreen-dialog'],
+      data: {
+      assetsIds,
+      actionType,
+      assignedCustomersIds
+      }
+      }).afterClosed()
+      .subscribe((res) => {
+      if (res) {
+      this.config.updateData();
+      }
+    });
+  }
+  assignAssetsToCustomers($event: Event, assetsId: Array<string>) {
+    this.showManageAssignedCustomersDialog($event, assetsId, 'assign');
+  }
+  unassignAssetsFromCustomers($event: Event, assetsId: Array<string>) {
+    this.showManageAssignedCustomersDialog($event, assetsId, 'unassign');
+  }
 }

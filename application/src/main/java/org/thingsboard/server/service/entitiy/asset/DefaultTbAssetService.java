@@ -16,10 +16,15 @@
 package org.thingsboard.server.service.entitiy.asset;
 
 import lombok.AllArgsConstructor;
+
+import java.util.HashSet;
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.asset.Asset;
 import org.thingsboard.server.common.data.audit.ActionType;
@@ -71,54 +76,23 @@ public class DefaultTbAssetService extends AbstractTbEntityService implements Tb
     }
 
     @Override
-    public Asset assignAssetToCustomer(TenantId tenantId, AssetId assetId, Customer customer, User user) throws ThingsboardException {
+    public Asset assignAssetToCustomer(Asset asset, Customer customer, User user) throws ThingsboardException {
         ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
         CustomerId customerId = customer.getId();
+        AssetId assetId = asset.getId();
         try {
             Asset savedAsset = checkNotNull(assetService.assignAssetToCustomer(tenantId, assetId, customerId));
-            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId, actionType, user,
-                    assetId.toString(), customerId.toString(), customer.getName());
-
+            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId, actionType,
+                    user, assetId.toString(), customerId.toString(), customer.getName());
             return savedAsset;
         } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e,
-                    assetId.toString(), customerId.toString());
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType,
+                    user, e, assetId.toString(), customerId.toString());
             throw e;
         }
     }
 
-    @Override
-    public Asset unassignAssetToCustomer(TenantId tenantId, AssetId assetId, Customer customer, User user) throws ThingsboardException {
-        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
-        try {
-            Asset savedAsset = checkNotNull(assetService.unassignAssetFromCustomer(tenantId, assetId));
-            CustomerId customerId = customer.getId();
-            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId, actionType, user,
-                    assetId.toString(), customerId.toString(), customer.getName());
-
-            return savedAsset;
-        } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
-            throw e;
-        }
-    }
-
-    @Override
-    public Asset assignAssetToPublicCustomer(TenantId tenantId, AssetId assetId, User user) throws ThingsboardException {
-        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
-        try {
-            Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
-            Asset savedAsset = checkNotNull(assetService.assignAssetToCustomer(tenantId, assetId, publicCustomer.getId()));
-            CustomerId customerId = publicCustomer.getId();
-            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId, actionType, user,
-                    assetId.toString(), customerId.toString(), publicCustomer.getName());
-
-            return savedAsset;
-        } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
-            throw e;
-        }
-    }
 
     @Override
     public Asset assignAssetToEdge(TenantId tenantId, AssetId assetId, Edge edge, User user) throws ThingsboardException {
@@ -150,6 +124,165 @@ public class DefaultTbAssetService extends AbstractTbEntityService implements Tb
         } catch (Exception e) {
             logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType,
                     user, e, assetId.toString(), edgeId.toString());
+            throw e;
+        }
+    }
+
+
+    @Override
+    public Asset updateAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Set<CustomerId> addedCustomerIds = new HashSet<>();
+            Set<CustomerId> removedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (!asset.isAssignedToCustomer(customerId)) {
+                    addedCustomerIds.add(customerId);
+                }
+            }
+
+            Set<ShortCustomerInfo> assignedCustomers = asset.getAssignedCustomers();
+            if (assignedCustomers != null) {
+                for (ShortCustomerInfo customerInfo : assignedCustomers) {
+                    if (!customerIds.contains(customerInfo.getCustomerId())) {
+                        removedCustomerIds.add(customerInfo.getCustomerId());
+                    }
+                }
+            }
+
+            if (addedCustomerIds.isEmpty() && removedCustomerIds.isEmpty()) {
+                return asset;
+            } else {
+                Asset savedAsset = null;
+                for (CustomerId customerId : addedCustomerIds) {
+                    savedAsset = checkNotNull(assetService.assignAssetToCustomer(tenantId, assetId, customerId));
+                    ShortCustomerInfo customerInfo = savedAsset.getAssignedCustomerInfo(customerId);
+                    logEntityActionService.logEntityAction(tenantId, savedAsset.getId(), savedAsset, customerId,
+                            actionType, user, assetId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+                for (CustomerId customerId : removedCustomerIds) {
+                    ShortCustomerInfo customerInfo = asset.getAssignedCustomerInfo(customerId);
+                    savedAsset = checkNotNull(assetService.unassignAssetFromCustomer(tenantId, assetId, customerId));
+                    logEntityActionService.logEntityAction(tenantId, savedAsset.getId(), savedAsset, customerId,
+                            actionType, user, assetId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedAsset;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Asset addAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Set<CustomerId> addedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (!asset.isAssignedToCustomer(customerId)) {
+                    addedCustomerIds.add(customerId);
+                }
+            }
+            if (addedCustomerIds.isEmpty()) {
+                return asset;
+            } else {
+                Asset savedAsset = null;
+                for (CustomerId customerId : addedCustomerIds) {
+                    savedAsset = checkNotNull(assetService.assignAssetToCustomer(tenantId, assetId, customerId));
+                    ShortCustomerInfo customerInfo = savedAsset.getAssignedCustomerInfo(customerId);
+                    logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId,
+                            actionType, user, assetId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedAsset;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Asset removeAssetCustomers(Asset asset, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Set<CustomerId> removedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (asset.isAssignedToCustomer(customerId)) {
+                    removedCustomerIds.add(customerId);
+                }
+            }
+            if (removedCustomerIds.isEmpty()) {
+                return asset;
+            } else {
+                Asset savedAsset = null;
+                for (CustomerId customerId : removedCustomerIds) {
+                    ShortCustomerInfo customerInfo = asset.getAssignedCustomerInfo(customerId);
+                    savedAsset = checkNotNull(assetService.unassignAssetFromCustomer(tenantId, assetId, customerId));
+                    logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customerId,
+                            actionType, user, assetId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedAsset;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DASHBOARD), actionType, user, e, assetId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Asset unassignAssetFromCustomer(Asset asset, Customer customer, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Asset savedAsset = checkNotNull(assetService.unassignAssetFromCustomer(tenantId, assetId, customer.getId()));
+            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, customer.getId(),
+                    actionType, user, assetId.toString(), customer.getId().toString(), customer.getName());
+            return savedAsset;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Asset assignAssetToPublicCustomer(Asset asset, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
+            Asset savedAsset = checkNotNull(assetService.assignAssetToCustomer(tenantId, assetId, publicCustomer.getId()));
+            logEntityActionService.logEntityAction(tenantId, assetId, savedAsset, publicCustomer.getId(),
+                    actionType, user, assetId.toString(), publicCustomer.getId().toString(), publicCustomer.getName());
+            return savedAsset;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Asset unassignAssetFromPublicCustomer(Asset asset, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = asset.getTenantId();
+        AssetId assetId = asset.getId();
+        try {
+            Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
+            Asset savedAsset = checkNotNull(assetService.unassignAssetFromCustomer(tenantId, assetId, publicCustomer.getId()));
+            logEntityActionService.logEntityAction(tenantId, assetId, asset, publicCustomer.getId(), actionType,
+                    user, assetId.toString(), publicCustomer.getId().toString(), publicCustomer.getName());
+            return savedAsset;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.ASSET), actionType, user, e, assetId.toString());
             throw e;
         }
     }
