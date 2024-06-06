@@ -23,6 +23,9 @@ import org.thingsboard.server.common.data.ResourceType;
 import org.thingsboard.server.common.data.TbResource;
 import org.thingsboard.server.common.data.TbResourceInfo;
 import org.thingsboard.server.common.data.User;
+import org.thingsboard.server.common.data.id.AssetId;
+import org.thingsboard.server.common.data.id.DeviceId;
+import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.id.DashboardId;
 import org.thingsboard.server.common.data.id.EntityId;
 import org.thingsboard.server.common.data.id.TbResourceId;
@@ -37,7 +40,7 @@ public class CustomerUserPermissions extends AbstractPermissions {
         super();
         put(Resource.ALARM, customerAlarmPermissionChecker);
         put(Resource.ASSET, customerEntityPermissionChecker);
-        put(Resource.DEVICE, customerEntityPermissionChecker);
+        put(Resource.DEVICE, customerDevicePermissionChecker);
         put(Resource.CUSTOMER, customerPermissionChecker);
         put(Resource.DASHBOARD, customerDashboardPermissionChecker);
         put(Resource.ENTITY_VIEW, customerEntityPermissionChecker);
@@ -52,6 +55,22 @@ public class CustomerUserPermissions extends AbstractPermissions {
         put(Resource.MOBILE_APP_SETTINGS, new PermissionChecker.GenericPermissionChecker(Operation.READ));
     }
 
+    private static final PermissionChecker customerDevicePermissionChecker =
+            new PermissionChecker.GenericPermissionChecker<DeviceId, Device>(Operation.READ, Operation.READ_ATTRIBUTES, Operation.READ_TELEMETRY, 
+            Operation.WRITE, Operation.WRITE_ATTRIBUTES, Operation.WRITE_TELEMETRY) {
+                @Override
+                public boolean hasPermission(SecurityUser user, Operation operation, DeviceId deviceId, Device device) {
+                    if (!super.hasPermission(user, operation, deviceId, device)) {
+                        return false;
+                    }
+                    if (!user.getTenantId().equals(device.getTenantId())) {
+                        return false;
+                    }
+                    return device.isAssignedToCustomer(user.getCustomerId());
+                      
+                }
+
+            };
     private static final PermissionChecker customerAlarmPermissionChecker = new PermissionChecker() {
         @Override
         public boolean hasPermission(SecurityUser user, Operation operation, EntityId entityId, HasTenantId entity) {

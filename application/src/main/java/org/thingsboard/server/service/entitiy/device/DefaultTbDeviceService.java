@@ -20,16 +20,22 @@ import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.MoreExecutors;
 import lombok.AllArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+
+import java.util.HashSet;
+import java.util.Set;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.EntityType;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
 import org.thingsboard.server.common.data.Tenant;
 import org.thingsboard.server.common.data.User;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
+import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.EdgeId;
@@ -104,60 +110,6 @@ public class DefaultTbDeviceService extends AbstractTbEntityService implements T
         }
     }
 
-    @Override
-    public Device assignDeviceToCustomer(TenantId tenantId, DeviceId deviceId, Customer customer, User user) throws ThingsboardException {
-        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
-        CustomerId customerId = customer.getId();
-        try {
-            Device savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, customerId));
-            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customerId, actionType, user,
-                    deviceId.toString(), customerId.toString(), customer.getName());
-
-            return savedDevice;
-        } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user,
-                    e, deviceId.toString(), customerId.toString());
-            throw e;
-        }
-    }
-
-    @Override
-    public Device unassignDeviceFromCustomer(Device device, Customer customer, User user) throws ThingsboardException {
-        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
-        TenantId tenantId = device.getTenantId();
-        DeviceId deviceId = device.getId();
-        try {
-            Device savedDevice = checkNotNull(deviceService.unassignDeviceFromCustomer(tenantId, deviceId));
-            CustomerId customerId = customer.getId();
-
-            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customerId, actionType, user,
-                    deviceId.toString(), customerId.toString(), customer.getName());
-
-            return savedDevice;
-        } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType,
-                    user, e, deviceId.toString());
-            throw e;
-        }
-    }
-
-    @Override
-    public Device assignDeviceToPublicCustomer(TenantId tenantId, DeviceId deviceId, User user) throws ThingsboardException {
-        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
-        Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
-        try {
-            Device savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, publicCustomer.getId()));
-
-            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, savedDevice.getCustomerId(),
-                    actionType, user, deviceId.toString(), publicCustomer.getId().toString(), publicCustomer.getName());
-
-            return savedDevice;
-        } catch (Exception e) {
-            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType,
-                    user, e, deviceId.toString());
-            throw e;
-        }
-    }
 
     @Override
     public DeviceCredentials getDeviceCredentialsByDeviceId(Device device, User user) throws ThingsboardException {
@@ -276,5 +228,182 @@ public class DefaultTbDeviceService extends AbstractTbEntityService implements T
             throw e;
         }
     }
+
+    @Override
+    public Device assignDeviceToCustomer(Device device, Customer customer, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        CustomerId customerId = customer.getId();
+        DeviceId deviceId = device.getId();
+        try {
+            Device savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, customerId));
+            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customerId, actionType,
+                    user, deviceId.toString(), customerId.toString(), customer.getName());
+            return savedDevice;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType,
+                    user, e, deviceId.toString(), customerId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device assignDeviceToPublicCustomer(Device device, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
+            Device savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, publicCustomer.getId()));
+            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, publicCustomer.getId(),
+                    actionType, user, deviceId.toString(), publicCustomer.getId().toString(), publicCustomer.getName());
+            return savedDevice;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device unassignDeviceFromPublicCustomer(Device device, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Customer publicCustomer = customerService.findOrCreatePublicCustomer(tenantId);
+            Device savedDevice = checkNotNull(deviceService.unassignDeviceFromCustomer(tenantId, deviceId, publicCustomer.getId()));
+            logEntityActionService.logEntityAction(tenantId, deviceId, device, publicCustomer.getId(), actionType,
+                    user, deviceId.toString(), publicCustomer.getId().toString(), publicCustomer.getName());
+            return savedDevice;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device updateDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Set<CustomerId> addedCustomerIds = new HashSet<>();
+            Set<CustomerId> removedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (!device.isAssignedToCustomer(customerId)) {
+                    addedCustomerIds.add(customerId);
+                }
+            }
+
+            Set<ShortCustomerInfo> assignedCustomers = device.getAssignedCustomers();
+            if (assignedCustomers != null) {
+                for (ShortCustomerInfo customerInfo : assignedCustomers) {
+                    if (!customerIds.contains(customerInfo.getCustomerId())) {
+                        removedCustomerIds.add(customerInfo.getCustomerId());
+                    }
+                }
+            }
+
+            if (addedCustomerIds.isEmpty() && removedCustomerIds.isEmpty()) {
+                return device;
+            } else {
+                Device savedDevice = null;
+                for (CustomerId customerId : addedCustomerIds) {
+                    savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, customerId));
+                    ShortCustomerInfo customerInfo = savedDevice.getAssignedCustomerInfo(customerId);
+                    logEntityActionService.logEntityAction(tenantId, savedDevice.getId(), savedDevice, customerId,
+                            actionType, user, deviceId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+                for (CustomerId customerId : removedCustomerIds) {
+                    ShortCustomerInfo customerInfo = device.getAssignedCustomerInfo(customerId);
+                    savedDevice = checkNotNull(deviceService.unassignDeviceFromCustomer(tenantId, deviceId, customerId));
+                    logEntityActionService.logEntityAction(tenantId, savedDevice.getId(), savedDevice, customerId,
+                            actionType, user, deviceId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedDevice;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device addDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.ASSIGNED_TO_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Set<CustomerId> addedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (!device.isAssignedToCustomer(customerId)) {
+                    addedCustomerIds.add(customerId);
+                }
+            }
+            if (addedCustomerIds.isEmpty()) {
+                return device;
+            } else {
+                Device savedDevice = null;
+                for (CustomerId customerId : addedCustomerIds) {
+                    savedDevice = checkNotNull(deviceService.assignDeviceToCustomer(tenantId, deviceId, customerId));
+                    ShortCustomerInfo customerInfo = savedDevice.getAssignedCustomerInfo(customerId);
+                    logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customerId,
+                            actionType, user, deviceId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedDevice;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device removeDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Set<CustomerId> removedCustomerIds = new HashSet<>();
+            for (CustomerId customerId : customerIds) {
+                if (device.isAssignedToCustomer(customerId)) {
+                    removedCustomerIds.add(customerId);
+                }
+            }
+            if (removedCustomerIds.isEmpty()) {
+                return device;
+            } else {
+                Device savedDevice = null;
+                for (CustomerId customerId : removedCustomerIds) {
+                    ShortCustomerInfo customerInfo = device.getAssignedCustomerInfo(customerId);
+                    savedDevice = checkNotNull(deviceService.unassignDeviceFromCustomer(tenantId, deviceId, customerId));
+                    logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customerId,
+                            actionType, user, deviceId.toString(), customerId.toString(), customerInfo.getTitle());
+                }
+                return savedDevice;
+            }
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DASHBOARD), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
+    @Override
+    public Device unassignDeviceFromCustomer(Device device, Customer customer, User user) throws ThingsboardException {
+        ActionType actionType = ActionType.UNASSIGNED_FROM_CUSTOMER;
+        TenantId tenantId = device.getTenantId();
+        DeviceId deviceId = device.getId();
+        try {
+            Device savedDevice = checkNotNull(deviceService.unassignDeviceFromCustomer(tenantId, deviceId, customer.getId()));
+            logEntityActionService.logEntityAction(tenantId, deviceId, savedDevice, customer.getId(),
+                    actionType, user, deviceId.toString(), customer.getId().toString(), customer.getName());
+            return savedDevice;
+        } catch (Exception e) {
+            logEntityActionService.logEntityAction(tenantId, emptyId(EntityType.DEVICE), actionType, user, e, deviceId.toString());
+            throw e;
+        }
+    }
+
 
 }

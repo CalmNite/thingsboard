@@ -576,18 +576,30 @@ public class DefaultEntityQueryRepository implements EntityQueryRepository {
     }
 
     private String defaultPermissionQuery(QueryContext ctx) {
-        ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
-        if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
-            ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
-            if (ctx.getEntityType() == EntityType.CUSTOMER) {
-                return "e.tenant_id=:permissions_tenant_id and e.id=:permissions_customer_id";
-            } else if (ctx.getEntityType() == EntityType.API_USAGE_STATE) {
-                return "e.tenant_id=:permissions_tenant_id and e.entity_id=:permissions_customer_id";
+        if (ctx.getEntityType() == EntityType.DASHBOARD || ctx.getEntityType() == EntityType.DEVICE){
+            ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
+            if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
+                ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
+                
+                return "e.tenant_id=:permissions_tenant_id and e.assigned_customers LIKE '%' || :permissions_customer_id || '%'";
+                
             } else {
-                return "e.tenant_id=:permissions_tenant_id and e.customer_id=:permissions_customer_id";
+                return "e.tenant_id=:permissions_tenant_id";
             }
-        } else {
-            return "e.tenant_id=:permissions_tenant_id";
+        }else{
+            ctx.addUuidParameter("permissions_tenant_id", ctx.getTenantId().getId());
+            if (ctx.getCustomerId() != null && !ctx.getCustomerId().isNullUid()) {
+                ctx.addUuidParameter("permissions_customer_id", ctx.getCustomerId().getId());
+                if (ctx.getEntityType() == EntityType.CUSTOMER) {
+                    return "e.tenant_id=:permissions_tenant_id and e.id=:permissions_customer_id";
+                } else if (ctx.getEntityType() == EntityType.API_USAGE_STATE) {
+                    return "e.tenant_id=:permissions_tenant_id and e.entity_id=:permissions_customer_id";
+                } else {
+                    return "e.tenant_id=:permissions_tenant_id and e.customer_id=:permissions_customer_id";
+                }
+            } else {
+                return "e.tenant_id=:permissions_tenant_id";
+            }
         }
     }
 

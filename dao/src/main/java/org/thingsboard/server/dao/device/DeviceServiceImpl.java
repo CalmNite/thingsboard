@@ -27,6 +27,7 @@ import org.springframework.util.CollectionUtils;
 import org.thingsboard.common.util.JacksonUtil;
 import org.thingsboard.server.cache.device.DeviceCacheEvictEvent;
 import org.thingsboard.server.cache.device.DeviceCacheKey;
+import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.DeviceIdInfo;
 import org.thingsboard.server.common.data.DeviceInfo;
@@ -39,6 +40,8 @@ import org.thingsboard.server.common.data.EntityType;
 import org.thingsboard.server.common.data.EntityView;
 import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.Tenant;
+import org.thingsboard.server.common.data.asset.Asset;
+import org.thingsboard.server.common.data.asset.AssetInfo;
 import org.thingsboard.server.common.data.audit.ActionType;
 import org.thingsboard.server.common.data.device.DeviceSearchQuery;
 import org.thingsboard.server.common.data.device.credentials.BasicMqttCredentials;
@@ -50,6 +53,7 @@ import org.thingsboard.server.common.data.device.data.Lwm2mDeviceTransportConfig
 import org.thingsboard.server.common.data.device.data.MqttDeviceTransportConfiguration;
 import org.thingsboard.server.common.data.device.data.SnmpDeviceTransportConfiguration;
 import org.thingsboard.server.common.data.edge.Edge;
+import org.thingsboard.server.common.data.id.AssetId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
@@ -65,6 +69,7 @@ import org.thingsboard.server.common.data.relation.EntitySearchDirection;
 import org.thingsboard.server.common.data.relation.RelationTypeGroup;
 import org.thingsboard.server.common.data.security.DeviceCredentials;
 import org.thingsboard.server.common.data.security.DeviceCredentialsType;
+import org.thingsboard.server.dao.customer.CustomerDao;
 import org.thingsboard.server.dao.device.provision.ProvisionFailedException;
 import org.thingsboard.server.dao.device.provision.ProvisionRequest;
 import org.thingsboard.server.dao.device.provision.ProvisionResponseStatus;
@@ -126,6 +131,10 @@ public class DeviceServiceImpl extends AbstractCachedEntityService<DeviceCacheKe
 
     @Autowired
     private JpaExecutorService executor;
+
+    @Autowired
+    private CustomerDao customerDao;
+
 
     @Override
     public DeviceInfo findDeviceInfoById(TenantId tenantId, DeviceId deviceId) {
@@ -317,11 +326,24 @@ public class DeviceServiceImpl extends AbstractCachedEntityService<DeviceCacheKe
     @Override
     public Device assignDeviceToCustomer(TenantId tenantId, DeviceId deviceId, CustomerId customerId) {
         Device device = findDeviceById(tenantId, deviceId);
-        if (customerId.equals(device.getCustomerId())) {
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't assign asset to non-existent customer!");
+        }
+        if (!customer.getTenantId().getId().equals(device.getTenantId().getId())) {
+            throw new DataValidationException("Can't assign asset to customer from different tenant!");
+        }
+        if (device.addAssignedCustomer(customer)) {
+            try {
+                createRelation(tenantId, new EntityRelation(customerId, deviceId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.DEVICE));
+            } catch (Exception e) {
+                log.warn("[{}] Failed to create asset relation. Customer Id: [{}]", deviceId, customerId);
+                throw new RuntimeException(e);
+            }
+            return saveDevice(device);
+        } else {
             return device;
         }
-        device.setCustomerId(customerId);
-        return saveDevice(device);
     }
 
     @Transactional
@@ -494,7 +516,8 @@ public class DeviceServiceImpl extends AbstractCachedEntityService<DeviceCacheKe
         log.trace("Executing unassignCustomerDevices, tenantId [{}], customerId [{}]", tenantId, customerId);
         validateId(tenantId, id -> INCORRECT_TENANT_ID + id);
         validateId(customerId, id -> INCORRECT_CUSTOMER_ID + id);
-        customerDevicesRemover.removeEntities(tenantId, customerId);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        new CustomerDevicesUnassigner(customer).removeEntities(tenantId, customer);
     }
 
     @Override
@@ -701,6 +724,84 @@ public class DeviceServiceImpl extends AbstractCachedEntityService<DeviceCacheKe
             unassignDeviceFromCustomer(tenantId, new DeviceId(entity.getUuidId()));
         }
     };
+
+    private Device updateAssignedCustomer(TenantId tenantId, DeviceId deviceId, Customer customer) {
+        Device device = findDeviceById(tenantId, deviceId);
+        if (device.updateAssignedCustomer(customer)) {
+            return saveDevice(device);
+        } else {
+            return device;
+        }
+    }
+    @Override
+    public Device unassignDeviceFromCustomer(TenantId tenantId, DeviceId deviceId, CustomerId customerId) {
+        Device device = findDeviceById(tenantId, deviceId);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't unassign dashboard from non-existent customer!");
+        }
+        if (device.removeAssignedCustomer(customer)) {
+            try {
+                deleteRelation(tenantId, new EntityRelation(customerId, deviceId, EntityRelation.CONTAINS_TYPE, RelationTypeGroup.DEVICE));
+            } catch (Exception e) {
+                log.warn("[{}] Failed to delete dashboard relation. Customer Id: [{}]", deviceId, customerId);
+                throw new RuntimeException(e);
+            }
+            return saveDevice(device);
+        } else {
+            return device;
+        }
+    }
+
+    @Override
+    public void updateCustomerDevices(TenantId tenantId, CustomerId customerId) {
+        log.trace("Executing updateCustomerDashboards, customerId [{}]", customerId);
+        validateId(customerId, id -> INCORRECT_CUSTOMER_ID + customerId);
+        Customer customer = customerDao.findById(tenantId, customerId.getId());
+        if (customer == null) {
+            throw new DataValidationException("Can't update dashboards for non-existent customer!");
+        }
+        new CustomerDevicesUpdater(customer).removeEntities(tenantId, customer);
+    }
+    private class CustomerDevicesUnassigner extends PaginatedRemover<Customer, Device> {
+
+        private Customer customer;
+
+        CustomerDevicesUnassigner(Customer customer) {
+            this.customer = customer;
+        }
+
+        @Override
+        protected PageData<Device> findEntities(TenantId tenantId, Customer customer, PageLink pageLink) {
+            return deviceDao.findDevicesByTenantIdAndCustomerId(customer.getTenantId().getId(), customer.getId().getId(), pageLink);
+        }
+
+        @Override
+        protected void removeEntity(TenantId tenantId, Device entity) {
+            unassignDeviceFromCustomer(customer.getTenantId(), new DeviceId(entity.getUuidId()), this.customer.getId());
+        }
+
+    }
+    private class CustomerDevicesUpdater extends PaginatedRemover<Customer, Device> {
+
+        private Customer customer;
+
+        CustomerDevicesUpdater(Customer customer) {
+            this.customer = customer;
+        }
+
+        @Override
+        protected PageData<Device> findEntities(TenantId tenantId, Customer customer, PageLink pageLink) {
+            return deviceDao.findDevicesByTenantIdAndCustomerId(customer.getTenantId().getId(), customer.getId().getId(), pageLink);
+        }
+
+
+        @Override
+        protected void removeEntity(TenantId tenantId, Device entity) {
+            updateAssignedCustomer(customer.getTenantId(), new DeviceId(entity.getUuidId()), this.customer);
+        }
+
+    }
 
     @Override
     public Optional<HasId<?>> findEntity(TenantId tenantId, EntityId entityId) {

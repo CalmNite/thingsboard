@@ -151,6 +151,7 @@ public class ModelConstants {
     public static final String DEVICE_DEVICE_DATA_PROPERTY = "device_data";
     public static final String DEVICE_FIRMWARE_ID_PROPERTY = "firmware_id";
     public static final String DEVICE_SOFTWARE_ID_PROPERTY = "software_id";
+    public static final String DEVICE_ASSIGNED_CUSTOMERS_PROPERTY = "assigned_customers";
 
     public static final String DEVICE_CUSTOMER_TITLE_PROPERTY = "customer_title";
     public static final String DEVICE_CUSTOMER_IS_PUBLIC_PROPERTY = "customer_is_public";

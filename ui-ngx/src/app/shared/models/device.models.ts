@@ -38,6 +38,7 @@ import {
 import { PageLink } from '@shared/models/page/page-link';
 import { isDefinedAndNotNull, isNotEmptyStr } from '@core/utils';
 import { EdgeId } from '@shared/models/id/edge-id';
+import { ShortCustomerInfo } from './customer.model';
 
 export enum DeviceProfileType {
   DEFAULT = 'DEFAULT',
@@ -714,6 +715,7 @@ export interface DeviceData {
 export interface Device extends BaseData<DeviceId>, HasTenantId, ExportableEntity<DeviceId> {
   tenantId?: TenantId;
   customerId?: CustomerId;
+  assignedCustomers?: Array<ShortCustomerInfo>;
   name: string;
   type?: string;
   label: string;
@@ -725,8 +727,9 @@ export interface Device extends BaseData<DeviceId>, HasTenantId, ExportableEntit
 }
 
 export interface DeviceInfo extends Device {
-  customerTitle: string;
-  customerIsPublic: boolean;
+  customerTitle?: string;
+  customerIsPublic?: boolean;
+  assignedCustomers?: Array<ShortCustomerInfo>;
   deviceProfileName: string;
   active: boolean;
 }
@@ -901,4 +904,35 @@ export const getAlarmScheduleRangeText = (startsOn: Date | number, endsOn: Date 
   }
   return `<span><span class="nowrap">12:00 AM</span> – <span class="nowrap">${end.format('hh:mm A')}</span>` +
     ` and <span class="nowrap">${start.format('hh:mm A')}</span> – <span class="nowrap">12:00 PM</span></span>`;
+};
+export interface DeviceSetUp extends DeviceInfo {
+  assignedCustomerIds?: Array<string>;
+}
+export const isPublicDevice = (device: DeviceInfo): boolean => {
+  if (device && device.assignedCustomers) {
+    return device.assignedCustomers
+      .filter(customerInfo => customerInfo.public).length > 0;
+  } else {
+    return false;
+  }
+};
+
+export const getDeviceAssignedCustomersText = (device: DeviceInfo): string => {
+  if (device && device.assignedCustomers && device.assignedCustomers.length > 0) {
+    return device.assignedCustomers
+      .filter(customerInfo => !customerInfo.public)
+      .map(customerInfo => customerInfo.title)
+      .join(', ');
+  } else {
+    return '';
+  }
+};
+
+export const isCurrentPublicDeviceCustomer = (device: Device, customerId: string): boolean => {
+  if (customerId && device && device.assignedCustomers) {
+    return device.assignedCustomers.filter(customerInfo =>
+      customerInfo.public && customerId === customerInfo.customerId.id).length > 0;
+  } else {
+    return false;
+  }
 };

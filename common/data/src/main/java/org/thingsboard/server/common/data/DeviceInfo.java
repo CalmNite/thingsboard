@@ -18,6 +18,9 @@ package org.thingsboard.server.common.data;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+
+import java.util.Set;
+
 import org.thingsboard.server.common.data.id.DeviceId;
 
 @Schema
@@ -27,10 +30,8 @@ public class DeviceInfo extends Device {
 
     private static final long serialVersionUID = -3004579925090663691L;
 
-    @Schema(description = "Title of the Customer that owns the device.", accessMode = Schema.AccessMode.READ_ONLY)
-    private String customerTitle;
-    @Schema(description = "Indicates special 'Public' Customer that is auto-generated to use the devices on public dashboards.", accessMode = Schema.AccessMode.READ_ONLY)
-    private boolean customerIsPublic;
+    private Set<ShortCustomerInfo> assignedCustomers;
+    
     @Schema(description = "Name of the corresponding Device Profile.", accessMode = Schema.AccessMode.READ_ONLY)
     private String deviceProfileName;
     @Schema(description = "Device active flag.", accessMode = Schema.AccessMode.READ_ONLY)
@@ -44,10 +45,14 @@ public class DeviceInfo extends Device {
         super(deviceId);
     }
 
-    public DeviceInfo(Device device, String customerTitle, boolean customerIsPublic, String deviceProfileName, boolean active) {
+    public DeviceInfo(Device device) {
         super(device);
-        this.customerTitle = customerTitle;
-        this.customerIsPublic = customerIsPublic;
+        this.assignedCustomers = device.getAssignedCustomers();
+    }
+
+    public DeviceInfo(Device device, String deviceProfileName, boolean active) {
+        super(device);
+        this.assignedCustomers = device.getAssignedCustomers();
         this.deviceProfileName = deviceProfileName;
         this.active = active;
     }

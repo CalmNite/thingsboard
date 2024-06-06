@@ -157,6 +157,9 @@ public class CustomerServiceImpl extends AbstractCachedEntityService<CustomerCac
             if (!savedCustomer.isPublic()) {
                 dashboardService.updateCustomerDashboards(savedCustomer.getTenantId(), savedCustomer.getId());
             }
+            if (!savedCustomer.isPublic()) {
+                deviceService.updateCustomerDevices(savedCustomer.getTenantId(), savedCustomer.getId());
+            }
             if (customer.getId() == null) {
                 countService.publishCountEntityEvictEvent(savedCustomer.getTenantId(), EntityType.CUSTOMER);
             }

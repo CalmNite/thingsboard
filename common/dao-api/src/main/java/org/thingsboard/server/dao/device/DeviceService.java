@@ -41,6 +41,10 @@ import java.util.UUID;
 
 public interface DeviceService extends EntityDaoService {
 
+    void updateCustomerDevices(TenantId tenantId, CustomerId customerId);
+
+    Device unassignDeviceFromCustomer(TenantId tenantId, DeviceId deviceId, CustomerId customerId);
+
     DeviceInfo findDeviceInfoById(TenantId tenantId, DeviceId deviceId);
 
     Device findDeviceById(TenantId tenantId, DeviceId deviceId);

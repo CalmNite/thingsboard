@@ -16,6 +16,9 @@
 package org.thingsboard.server.service.entitiy.device;
 
 import com.google.common.util.concurrent.ListenableFuture;
+
+import java.util.Set;
+
 import org.thingsboard.server.common.data.Customer;
 import org.thingsboard.server.common.data.Device;
 import org.thingsboard.server.common.data.Tenant;
@@ -37,11 +40,19 @@ public interface TbDeviceService {
 
     void delete(Device device, User user);
 
-    Device assignDeviceToCustomer(TenantId tenantId, DeviceId deviceId, Customer customer, User user) throws ThingsboardException;
+    Device assignDeviceToCustomer(Device device, Customer customer, User user) throws ThingsboardException;
 
     Device unassignDeviceFromCustomer(Device device, Customer customer, User user) throws ThingsboardException;
 
-    Device assignDeviceToPublicCustomer(TenantId tenantId, DeviceId deviceId, User user) throws ThingsboardException;
+    Device assignDeviceToPublicCustomer(Device device, User user) throws ThingsboardException;
+
+    Device unassignDeviceFromPublicCustomer(Device device, User user) throws ThingsboardException;
+
+    Device updateDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException;
+
+    Device addDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException;
+
+    Device removeDeviceCustomers(Device device, Set<CustomerId> customerIds, User user) throws ThingsboardException;
 
     DeviceCredentials getDeviceCredentialsByDeviceId(Device device, User user) throws ThingsboardException;
 

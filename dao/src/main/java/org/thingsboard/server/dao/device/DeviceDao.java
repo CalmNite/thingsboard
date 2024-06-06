@@ -219,4 +219,5 @@ public interface DeviceDao extends Dao<Device>, TenantEntityDao, ExportableEntit
     PageData<DeviceIdInfo> findDeviceIdInfos(PageLink pageLink);
 
     PageData<DeviceInfo> findDeviceInfosByFilter(DeviceInfoFilter filter, PageLink pageLink);
+
 }

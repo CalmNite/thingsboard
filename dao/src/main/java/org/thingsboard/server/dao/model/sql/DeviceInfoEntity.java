@@ -48,7 +48,7 @@ public class DeviceInfoEntity extends AbstractDeviceEntity<DeviceInfo> {
 
     @Override
     public DeviceInfo toData() {
-        return new DeviceInfo(super.toDevice(), customerTitle, customerIsPublic, deviceProfileName, active);
+        return new DeviceInfo(super.toDevice(), deviceProfileName, active);
     }
 
 }

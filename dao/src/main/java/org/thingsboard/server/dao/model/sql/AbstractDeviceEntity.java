@@ -15,6 +15,7 @@
  */
 package org.thingsboard.server.dao.model.sql;
 
+import com.fasterxml.jackson.databind.JavaType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import jakarta.persistence.Column;
@@ -22,10 +23,15 @@ import jakarta.persistence.Convert;
 import jakarta.persistence.MappedSuperclass;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
+import lombok.extern.slf4j.Slf4j;
+
 import org.hibernate.annotations.JdbcType;
 import org.hibernate.dialect.PostgreSQLJsonPGObjectJsonbType;
 import org.thingsboard.common.util.JacksonUtil;
+
 import org.thingsboard.server.common.data.Device;
+import org.thingsboard.server.common.data.ShortCustomerInfo;
+import org.thingsboard.server.common.data.StringUtils;
 import org.thingsboard.server.common.data.device.data.DeviceData;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
@@ -36,13 +42,22 @@ import org.thingsboard.server.dao.model.BaseSqlEntity;
 import org.thingsboard.server.dao.model.ModelConstants;
 import org.thingsboard.server.dao.util.mapping.JsonConverter;
 
+import java.util.HashSet;
 import java.util.UUID;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
 @MappedSuperclass
+@Slf4j
 public abstract class AbstractDeviceEntity<T extends Device> extends BaseSqlEntity<T> {
 
+    private static final JavaType assignedCustomersType =
+            JacksonUtil.constructCollectionType(HashSet.class, ShortCustomerInfo.class);
+
+
+    @Column(name = ModelConstants.DEVICE_ASSIGNED_CUSTOMERS_PROPERTY)
+    private String assignedCustomers;
+ 
     @Column(name = ModelConstants.DEVICE_TENANT_ID_PROPERTY, columnDefinition = "uuid")
     private UUID tenantId;
 
@@ -103,6 +118,13 @@ public abstract class AbstractDeviceEntity<T extends Device> extends BaseSqlEnti
         if (device.getSoftwareId() != null) {
             this.softwareId = device.getSoftwareId().getId();
         }
+        if (device.getAssignedCustomers() != null) {
+            try {
+                this.assignedCustomers = JacksonUtil.toString(device.getAssignedCustomers());
+            } catch (IllegalArgumentException e) {
+                log.error("Unable to serialize assigned customers to string!", e);
+            }
+        }
         this.deviceData = JacksonUtil.convertValue(device.getDeviceData(), ObjectNode.class);
         this.name = device.getName();
         this.type = device.getType();
@@ -116,6 +138,7 @@ public abstract class AbstractDeviceEntity<T extends Device> extends BaseSqlEnti
     public AbstractDeviceEntity(DeviceEntity deviceEntity) {
         this.setId(deviceEntity.getId());
         this.setCreatedTime(deviceEntity.getCreatedTime());
+        this.setAssignedCustomers(deviceEntity.getAssignedCustomers());
         this.tenantId = deviceEntity.getTenantId();
         this.customerId = deviceEntity.getCustomerId();
         this.deviceProfileId = deviceEntity.getDeviceProfileId();
@@ -137,6 +160,13 @@ public abstract class AbstractDeviceEntity<T extends Device> extends BaseSqlEnti
         }
         if (customerId != null) {
             device.setCustomerId(new CustomerId(customerId));
+        }
+        if (!StringUtils.isEmpty(assignedCustomers)) {
+            try {
+                device.setAssignedCustomers(JacksonUtil.fromString(assignedCustomers, assignedCustomersType));
+            } catch (IllegalArgumentException e) {
+                log.warn("Unable to parse assigned customers!", e);
+            }
         }
         if (deviceProfileId != null) {
             device.setDeviceProfileId(new DeviceProfileId(deviceProfileId));

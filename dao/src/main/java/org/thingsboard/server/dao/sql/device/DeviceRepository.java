@@ -33,8 +33,9 @@ public interface DeviceRepository extends JpaRepository<DeviceEntity, UUID>, Exp
     @Query("SELECT d FROM DeviceInfoEntity d WHERE d.id = :deviceId")
     DeviceInfoEntity findDeviceInfoById(@Param("deviceId") UUID deviceId);
 
-    @Query("SELECT d FROM DeviceEntity d WHERE d.tenantId = :tenantId " +
-            "AND d.customerId = :customerId " +
+    @Query("SELECT d FROM DeviceEntity d, RelationEntity re WHERE d.tenantId = :tenantId " +
+            "AND d.id = re.toId AND re.toType = 'DEVICE' AND re.relationTypeGroup = 'DEVICE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
             "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true " +
             "OR ilike(d.label, CONCAT('%', :textSearch, '%')) = true)")
     Page<DeviceEntity> findByTenantIdAndCustomerId(@Param("tenantId") UUID tenantId,
@@ -51,9 +52,10 @@ public interface DeviceRepository extends JpaRepository<DeviceEntity, UUID>, Exp
                                                   @Param("textSearch") String textSearch,
                                                   Pageable pageable);
 
-    @Query("SELECT d FROM DeviceInfoEntity d " +
+    @Query("SELECT d FROM DeviceInfoEntity d, RelationEntity re " +
             "WHERE d.tenantId = :tenantId " +
-            "AND d.customerId = :customerId " +
+            "AND d.id = re.toId AND re.toType = 'DEVICE' AND re.relationTypeGroup = 'DEVICE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
             "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true " +
             "OR ilike(d.label, CONCAT('%', :textSearch, '%')) = true)")
     Page<DeviceInfoEntity> findDeviceInfosByTenantIdAndCustomerId(@Param("tenantId") UUID tenantId,
@@ -113,8 +115,9 @@ public interface DeviceRepository extends JpaRepository<DeviceEntity, UUID>, Exp
     Long countByTenantIdAndDeviceProfileIdAndSoftwareIdIsNull(@Param("tenantId") UUID tenantId,
                                                               @Param("deviceProfileId") UUID deviceProfileId);
 
-    @Query("SELECT d FROM DeviceEntity d WHERE d.tenantId = :tenantId " +
-            "AND d.customerId = :customerId " +
+    @Query("SELECT d FROM DeviceEntity d, RelationEntity re WHERE d.tenantId = :tenantId " +
+            "AND d.id = re.toId AND re.toType = 'DEVICE' AND re.relationTypeGroup = 'DEVICE' " +
+            "AND re.relationType = 'Contains' AND re.fromId = :customerId AND re.fromType = 'CUSTOMER' " +
             "AND d.type = :type " +
             "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true " +
             "OR ilike(d.label, CONCAT('%', :textSearch, '%')) = true)")
@@ -126,15 +129,13 @@ public interface DeviceRepository extends JpaRepository<DeviceEntity, UUID>, Exp
 
     @Query("SELECT d FROM DeviceInfoEntity d " +
             "WHERE d.tenantId = :tenantId " +
-            "AND (:customerId IS NULL OR d.customerId = :customerId) " +
+            "AND (:customerId IS NULL OR d.id IN (SELECT re.toId FROM RelationEntity re WHERE re.toType = 'DEVICE' AND re.relationTypeGroup = 'DEVICE' AND re.relationType = 'Contains' AND re.fromType = 'CUSTOMER' AND re.fromId = :customerId)) " +
             "AND (:edgeId IS NULL OR d.id IN (SELECT re.toId FROM RelationEntity re WHERE re.toType = 'DEVICE' AND re.relationTypeGroup = 'EDGE' AND re.relationType = 'Contains' AND re.fromType = 'EDGE' AND re.fromId = :edgeId)) " +
             "AND ((:deviceType) IS NULL OR d.type = :deviceType) " +
             "AND (:deviceProfileId IS NULL OR d.deviceProfileId = :deviceProfileId) " +
             "AND ((:filterByActive) = FALSE OR d.active = :deviceActive) " +
             "AND (:textSearch IS NULL OR ilike(d.name, CONCAT('%', :textSearch, '%')) = true " +
-            "OR ilike(d.label, CONCAT('%', :textSearch, '%')) = true " +
-            "OR ilike(d.type, CONCAT('%', :textSearch, '%')) = true " +
-            "OR ilike(d.customerTitle, CONCAT('%', :textSearch, '%')) = true)")
+            "OR ilike(d.type, CONCAT('%', :textSearch, '%')) = true)")
     Page<DeviceInfoEntity> findDeviceInfosByFilter(@Param("tenantId") UUID tenantId,
                                                    @Param("customerId") UUID customerId,
                                                    @Param("edgeId") UUID edgeId,

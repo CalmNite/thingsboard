@@ -331,6 +331,7 @@ CREATE TABLE IF NOT EXISTS device (
     created_time bigint NOT NULL,
     additional_info varchar,
     customer_id uuid,
+    assigned_customers varchar(1000000),
     device_profile_id uuid NOT NULL,
     device_data jsonb,
     type varchar(255),

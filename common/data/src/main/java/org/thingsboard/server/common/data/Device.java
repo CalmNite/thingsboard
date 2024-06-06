@@ -34,7 +34,9 @@ import org.thingsboard.server.common.data.validation.NoXss;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.Optional;
+import java.util.Set;
 
 @Schema
 @EqualsAndHashCode(callSuper = true)
@@ -45,6 +47,7 @@ public class Device extends BaseDataWithAdditionalInfo<DeviceId> implements HasL
 
     private TenantId tenantId;
     private CustomerId customerId;
+    private Set<ShortCustomerInfo> assignedCustomers;
     @NoXss
     @Length(fieldName = "name")
     private String name;
@@ -82,6 +85,7 @@ public class Device extends BaseDataWithAdditionalInfo<DeviceId> implements HasL
         this.type = device.getType();
         this.label = device.getLabel();
         this.deviceProfileId = device.getDeviceProfileId();
+        this.assignedCustomers = device.getAssignedCustomers();
         this.setDeviceData(device.getDeviceData());
         this.firmwareId = device.getFirmwareId();
         this.softwareId = device.getSoftwareId();
@@ -94,6 +98,7 @@ public class Device extends BaseDataWithAdditionalInfo<DeviceId> implements HasL
         this.name = device.getName();
         this.type = device.getType();
         this.label = device.getLabel();
+        this.assignedCustomers = device.getAssignedCustomers();
         this.deviceProfileId = device.getDeviceProfileId();
         this.setDeviceData(device.getDeviceData());
         this.setFirmwareId(device.getFirmwareId());
@@ -125,6 +130,62 @@ public class Device extends BaseDataWithAdditionalInfo<DeviceId> implements HasL
 
     public void setTenantId(TenantId tenantId) {
         this.tenantId = tenantId;
+    }
+    public Set<ShortCustomerInfo> getAssignedCustomers() {
+        return assignedCustomers;
+    }
+
+    public void setAssignedCustomers(Set<ShortCustomerInfo> assignedCustomers) {
+        this.assignedCustomers = assignedCustomers;
+    }
+    
+    public boolean isAssignedToCustomer(CustomerId customerId) {
+        return this.assignedCustomers != null && this.assignedCustomers.contains(new ShortCustomerInfo(customerId, null, false));
+    }
+
+    public ShortCustomerInfo getAssignedCustomerInfo(CustomerId customerId) {
+        if (this.assignedCustomers != null) {
+            for (ShortCustomerInfo customerInfo : this.assignedCustomers) {
+                if (customerInfo.getCustomerId().equals(customerId)) {
+                    return customerInfo;
+                }
+            }
+        }
+        return null;
+    }
+
+    public boolean addAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            return false;
+        } else {
+            if (this.assignedCustomers == null) {
+                this.assignedCustomers = new HashSet<>();
+            }
+            this.assignedCustomers.add(customerInfo);
+            return true;
+        }
+    }
+
+    public boolean updateAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            this.assignedCustomers.remove(customerInfo);
+            this.assignedCustomers.add(customerInfo);
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    public boolean removeAssignedCustomer(Customer customer) {
+        ShortCustomerInfo customerInfo = customer.toShortCustomerInfo();
+        if (this.assignedCustomers != null && this.assignedCustomers.contains(customerInfo)) {
+            this.assignedCustomers.remove(customerInfo);
+            return true;
+        } else {
+            return false;
+        }
     }
 
     @Schema(description = "JSON object with Customer Id. Use 'assignDeviceToCustomer' to change the Customer Id.", accessMode = Schema.AccessMode.READ_ONLY)

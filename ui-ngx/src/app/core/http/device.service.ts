@@ -46,6 +46,34 @@ export class DeviceService {
     private resourcesService: ResourcesService
   ) { }
 
+  public getCustomerDevices(customerId: string, pageLink: PageLink, type: string = '',
+    config?: RequestConfig): Observable<PageData<Device>> {
+    return this.http.get<PageData<Device>>(`/api/customer/${customerId}/devices${pageLink.toQuery()}&type=${type}`,
+    defaultHttpOptionsFromConfig(config));
+  }
+
+  public updateDeviceCustomers(deviceId: string, customerIds: Array<string>,
+      config?: RequestConfig): Observable<Device> {
+    return this.http.post<Device>(`/api/device/${deviceId}/customers`, customerIds,
+    defaultHttpOptionsFromConfig(config));
+  }
+
+  public addDeviceCustomers(deviceId: string, customerIds: Array<string>,
+    config?: RequestConfig): Observable<Device> {
+    return this.http.post<Device>(`/api/device/${deviceId}/customers/add`, customerIds,
+    defaultHttpOptionsFromConfig(config));
+  }
+
+  public removeDeviceCustomers(deviceId: string, customerIds: Array<string>,
+      config?: RequestConfig): Observable<Device> {
+    return this.http.post<Device>(`/api/device/${deviceId}/customers/remove`, customerIds,
+    defaultHttpOptionsFromConfig(config));
+  }
+
+  public unassignDeviceFromCustomer(customerId: string,deviceId: string, config?: RequestConfig) {
+    return this.http.delete(`/api/customer/${customerId}/device/${deviceId}`, defaultHttpOptionsFromConfig(config));
+  }
+
   public getDeviceInfosByQuery(deviceInfoQuery: DeviceInfoQuery, config?: RequestConfig): Observable<PageData<DeviceInfo>> {
     return this.http.get<PageData<DeviceInfo>>(`/api${deviceInfoQuery.toQuery()}`,
       defaultHttpOptionsFromConfig(config));
@@ -141,10 +169,6 @@ export class DeviceService {
   public assignDeviceToCustomer(customerId: string, deviceId: string,
                                 config?: RequestConfig): Observable<Device> {
     return this.http.post<Device>(`/api/customer/${customerId}/device/${deviceId}`, null, defaultHttpOptionsFromConfig(config));
-  }
-
-  public unassignDeviceFromCustomer(deviceId: string, config?: RequestConfig) {
-    return this.http.delete(`/api/customer/device/${deviceId}`, defaultHttpOptionsFromConfig(config));
   }
 
   public sendOneWayRpcCommand(deviceId: string, requestBody: any, config?: RequestConfig): Observable<any> {

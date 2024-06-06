@@ -53,6 +53,7 @@ import org.thingsboard.server.common.data.device.DeviceSearchQuery;
 import org.thingsboard.server.common.data.edge.Edge;
 import org.thingsboard.server.common.data.exception.ThingsboardErrorCode;
 import org.thingsboard.server.common.data.exception.ThingsboardException;
+import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.CustomerId;
 import org.thingsboard.server.common.data.id.DeviceId;
 import org.thingsboard.server.common.data.id.DeviceProfileId;
@@ -80,7 +81,9 @@ import org.thingsboard.server.service.security.permission.Resource;
 
 import jakarta.validation.Valid;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
@@ -238,50 +241,124 @@ public class DeviceController extends BaseController {
     @RequestMapping(value = "/customer/{customerId}/device/{deviceId}", method = RequestMethod.POST)
     @ResponseBody
     public Device assignDeviceToCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION)
-                                         @PathVariable("customerId") String strCustomerId,
+                                         @PathVariable(CUSTOMER_ID) String strCustomerId,
                                          @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
                                          @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
-        checkParameter("customerId", strCustomerId);
+        checkParameter(CUSTOMER_ID, strCustomerId);
         checkParameter(DEVICE_ID, strDeviceId);
         CustomerId customerId = new CustomerId(toUUID(strCustomerId));
         Customer customer = checkCustomerId(customerId, Operation.READ);
         DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
-        checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
-        return tbDeviceService.assignDeviceToCustomer(getTenantId(), deviceId, customer, getCurrentUser());
+        Device device = checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
+        return tbDeviceService.assignDeviceToCustomer(device, customer, getCurrentUser());
     }
 
     @ApiOperation(value = "Unassign device from customer (unassignDeviceFromCustomer)",
             notes = "Clears assignment of the device to customer. Customer will not be able to query device afterwards." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
-    @RequestMapping(value = "/customer/device/{deviceId}", method = RequestMethod.DELETE)
+    @RequestMapping(value = "/customer/{customerId}/device/{deviceId}", method = RequestMethod.DELETE)
     @ResponseBody
-    public Device unassignDeviceFromCustomer(@Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
-                                             @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
+    public Device unassignDeviceFromCustomer(@Parameter(description = CUSTOMER_ID_PARAM_DESCRIPTION) @PathVariable(CUSTOMER_ID) String strCustomerId, 
+                                             @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION) @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
         checkParameter(DEVICE_ID, strDeviceId);
         DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
         Device device = checkDeviceId(deviceId, Operation.UNASSIGN_FROM_CUSTOMER);
         if (device.getCustomerId() == null || device.getCustomerId().getId().equals(ModelConstants.NULL_UUID)) {
             throw new IncorrectParameterException("Device isn't assigned to any customer!");
         }
-
-        Customer customer = checkCustomerId(device.getCustomerId(), Operation.READ);
-
+        checkParameter(CUSTOMER_ID, strCustomerId);
+        CustomerId customerId = new CustomerId(toUUID(strCustomerId));
+        Customer customer = checkCustomerId(customerId, Operation.READ);
         return tbDeviceService.unassignDeviceFromCustomer(device, customer, getCurrentUser());
     }
 
-    @ApiOperation(value = "Make device publicly available (assignDeviceToPublicCustomer)",
-            notes = "Device will be available for non-authorized (not logged-in) users. " +
-                    "This is useful to create dashboards that you plan to share/embed on a publicly available website. " +
-                    "However, users that are logged-in and belong to different tenant will not be able to access the device." + TENANT_AUTHORITY_PARAGRAPH)
+    @ApiOperation(value = "Update the Device Customers (updateDeviceCustomers)",
+            notes = "Updates the list of Customers that this Device is assigned to. Removes previous assignments to customers that are not in the provided list. " +
+                    "Returns the Device object. " + TENANT_AUTHORITY_PARAGRAPH)
+
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/device/{deviceId}/customers", method = RequestMethod.POST)
+    @ResponseBody
+    public Device updateDeviceCustomers(
+            @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
+            @PathVariable(DEVICE_ID) String strDeviceId,
+            @Parameter(description = "JSON array with the list of customer ids, or empty to remove all customers")
+            @RequestBody(required = false) String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(DEVICE_ID, strDeviceId);
+        DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
+        Device device = checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbDeviceService.updateDeviceCustomers(device, customerIds, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Adds the Device Customers (addDeviceCustomers)",
+            notes = "Adds the list of Customers to the existing list of assignments for the Device. Keeps previous assignments to customers that are not in the provided list. " +
+                    "Returns the Device object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/device/{deviceId}/customers/add", method = RequestMethod.POST)
+    @ResponseBody
+    public Device addDeviceCustomers(
+            @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
+            @PathVariable(DEVICE_ID) String strDeviceId,
+            @Parameter(description = "JSON array with the list of customer ids")
+            @RequestBody String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(DEVICE_ID, strDeviceId);
+        DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
+        Device device = checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbDeviceService.addDeviceCustomers(device, customerIds, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Remove the Device Customers (removeDeviceCustomers)",
+            notes = "Removes the list of Customers from the existing list of assignments for the Device. Keeps other assignments to customers that are not in the provided list. " +
+                    "Returns the Device object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/device/{deviceId}/customers/remove", method = RequestMethod.POST)
+    @ResponseBody
+    public Device removeDeviceCustomers(
+            @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
+            @PathVariable(DEVICE_ID) String strDeviceId,
+            @Parameter(description = "JSON array with the list of customer ids")
+            @RequestBody String[] strCustomerIds) throws ThingsboardException {
+        checkParameter(DEVICE_ID, strDeviceId);
+        DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
+        Device device = checkDeviceId(deviceId, Operation.UNASSIGN_FROM_CUSTOMER);
+        Set<CustomerId> customerIds = customerIdFromStr(strCustomerIds);
+        return tbDeviceService.removeDeviceCustomers(device, customerIds, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Assign the Device to Public Customer (assignDeviceToPublicCustomer)",
+            notes = "Assigns the device to a special, auto-generated 'Public' Customer. Once assigned, unauthenticated users may browse the device. " +
+                    "This method is useful if you like to embed the device on public web pages to be available for users that are not logged in. " +
+                    "Be aware that making the device public does not mean that it automatically makes all devices and devices you use in the device to be public." +
+                    "Use [assign Device to Public Customer](#!/device-controller/assignDeviceToPublicCustomerUsingPOST) and " +
+                    "[assign Device to Public Customer](#!/device-controller/assignDeviceToPublicCustomerUsingPOST) for this purpose. " +
+                    "Returns the Device object." + TENANT_AUTHORITY_PARAGRAPH)
     @PreAuthorize("hasAuthority('TENANT_ADMIN')")
     @RequestMapping(value = "/customer/public/device/{deviceId}", method = RequestMethod.POST)
     @ResponseBody
-    public Device assignDeviceToPublicCustomer(@Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
-                                               @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
+    public Device assignDeviceToPublicCustomer(
+            @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
+            @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
         checkParameter(DEVICE_ID, strDeviceId);
         DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
-        checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
-        return tbDeviceService.assignDeviceToPublicCustomer(getTenantId(), deviceId, getCurrentUser());
+        Device device = checkDeviceId(deviceId, Operation.ASSIGN_TO_CUSTOMER);
+        return tbDeviceService.assignDeviceToPublicCustomer(device, getCurrentUser());
+    }
+
+    @ApiOperation(value = "Unassign the Device from Public Customer (unassignDeviceFromPublicCustomer)",
+            notes = "Unassigns the device from a special, auto-generated 'Public' Customer. Once unassigned, unauthenticated users may no longer browse the device. " +
+                    "Returns the Device object." + TENANT_AUTHORITY_PARAGRAPH)
+    @PreAuthorize("hasAuthority('TENANT_ADMIN')")
+    @RequestMapping(value = "/customer/public/device/{deviceId}", method = RequestMethod.DELETE)
+    @ResponseBody
+    public Device unassignDeviceFromPublicCustomer(
+            @Parameter(description = DEVICE_ID_PARAM_DESCRIPTION)
+            @PathVariable(DEVICE_ID) String strDeviceId) throws ThingsboardException {
+        checkParameter(DEVICE_ID, strDeviceId);
+        DeviceId deviceId = new DeviceId(toUUID(strDeviceId));
+        Device device = checkDeviceId(deviceId, Operation.UNASSIGN_FROM_CUSTOMER);
+        return tbDeviceService.unassignDeviceFromPublicCustomer(device, getCurrentUser());
     }
 
     @ApiOperation(value = "Get Device Credentials (getDeviceCredentialsByDeviceId)",
@@ -786,4 +863,14 @@ public class DeviceController extends BaseController {
         return deviceBulkImportService.processBulkImport(request, user);
     }
 
+    private Set<CustomerId> customerIdFromStr(String[] strCustomerIds) {
+        Set<CustomerId> customerIds = new HashSet<>();
+        if (strCustomerIds != null) {
+            for (String strCustomerId : strCustomerIds) {
+                customerIds.add(new CustomerId(UUID.fromString(strCustomerId)));
+            }
+        }
+        log.warn("CUSTOMER IDS LIST RECIVED");
+        return customerIds;
+    }
 }

@@ -26,7 +26,8 @@ import {
   DeviceInfo,
   DeviceProfileInfo,
   DeviceProfileType,
-  DeviceTransportType
+  DeviceTransportType,
+  isPublicDevice
 } from '@shared/models/device.models';
 import { EntityType } from '@shared/models/entity-type.models';
 import { NULL_UUID } from '@shared/models/id/has-uuid';
@@ -50,6 +51,7 @@ export class DeviceComponent extends EntityComponent<DeviceInfo> {
   deviceCredentials$: Subject<DeviceCredentials>;
 
   deviceScope: 'tenant' | 'customer' | 'customer_user' | 'edge' | 'edge_customer_user';
+  assignedCustomersText: string;
 
   otaUpdateType = OtaUpdateType;
 
@@ -67,6 +69,10 @@ export class DeviceComponent extends EntityComponent<DeviceInfo> {
     this.deviceCredentials$ = this.entitiesTableConfigValue.componentsData.deviceCredentials$;
     super.ngOnInit();
   }
+  isPublic(entity: DeviceInfo): boolean {
+    return isPublicDevice(entity);
+  }
+
 
   hideDelete() {
     if (this.entitiesTableConfig) {
