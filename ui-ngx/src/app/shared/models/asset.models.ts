@@ -64,7 +64,7 @@ export interface AssetInfo extends Asset {
 export interface AssetSearchQuery extends EntitySearchQuery {
   assetTypes: Array<string>;
 }
-export interface AssetSetup extends AssetInfo {
+export interface AssetSetup extends Asset {
   assignedCustomerIds?: Array<string>;
 }
 export const isPublicAsset = (asset: AssetInfo): boolean => {

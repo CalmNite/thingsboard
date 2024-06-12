@@ -242,7 +242,9 @@ public class AssetController extends BaseController {
             @Parameter(description = ASSET_ID_PARAM_DESCRIPTION)
             @PathVariable(ASSET_ID) String strAssetId,
             @Parameter(description = "JSON array with the list of customer ids")
-            @RequestBody String[] strCustomerIds) throws ThingsboardException {
+            @RequestBody(required = false) String[] strCustomerIds) throws ThingsboardException {
+
+    
         checkParameter(ASSET_ID, strAssetId);
         AssetId assetId = new AssetId(toUUID(strAssetId));
         Asset asset = checkAssetId(assetId, Operation.ASSIGN_TO_CUSTOMER);
@@ -599,7 +601,7 @@ public class AssetController extends BaseController {
     private Set<CustomerId> customerIdFromStr(String[] strCustomerIds) {
         Set<CustomerId> customerIds = new HashSet<>();
         if (strCustomerIds != null) {
-            for (String strCustomerId : strCustomerIds) {
+            for (String strCustomerId :strCustomerIds) {
                 customerIds.add(new CustomerId(UUID.fromString(strCustomerId)));
             }
         }

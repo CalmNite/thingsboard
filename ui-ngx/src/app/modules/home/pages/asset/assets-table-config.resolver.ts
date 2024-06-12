@@ -50,7 +50,7 @@ import {
   AddEntitiesToCustomerDialogComponent,
   AddEntitiesToCustomerDialogData
 } from '../../dialogs/add-entities-to-customer-dialog.component';
-import { Asset, AssetInfo, getAssetAssignedCustomersText, isPublicAsset } from '@app/shared/models/asset.models';
+import { Asset, AssetInfo, AssetSetup, getAssetAssignedCustomersText, isPublicAsset } from '@app/shared/models/asset.models';
 import { AssetService } from '@app/core/http/asset.service';
 import { AssetComponent } from '@modules/home/pages/asset/asset.component';
 import { AssetTableHeaderComponent } from '@modules/home/pages/asset/asset-table-header.component';
@@ -96,14 +96,7 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
     this.config.deleteEntitiesContent = () => this.translate.instant('asset.delete-assets-text');
 
     this.config.loadEntity = id => this.assetService.getAssetInfo(id.id);
-    this.config.saveEntity = asset => {
-      return this.assetService.saveAsset(asset).pipe(
-        tap(() => {
-          this.broadcast.broadcast('assetSaved');
-        }),
-        mergeMap((savedAsset) => this.assetService.getAssetInfo(savedAsset.id.id)
-        ));
-    };
+    this.config.saveEntity = asset => this.saveAndAssignAsset(asset as AssetSetup);
     this.config.onEntityAction = action => this.onAssetAction(action, this.config);
     this.config.detailsReadonly = () => (this.config.componentsData.assetScope === 'customer_user' ||
       this.config.componentsData.assetScope === 'edge_customer_user');
@@ -456,6 +449,9 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
       case 'unassignFromEdge':
         this.unassignFromEdge(action.event, action.entity);
         return true;
+      case 'manageAssignedCustomers':
+        this.manageAssignedCustomers(action.event, action.entity);
+        return true;
     }
     return false;
   }
@@ -558,5 +554,21 @@ export class AssetsTableConfigResolver implements Resolve<EntityTableConfig<Asse
   }
   unassignAssetsFromCustomers($event: Event, assetsId: Array<string>) {
     this.showManageAssignedCustomersDialog($event, assetsId, 'unassign');
+  }
+
+  saveAndAssignAsset(asset: AssetSetup): Observable<AssetInfo> {
+    const {assignedCustomerIds, ...assetToCreate} = asset;
+    return this.assetService.saveAsset(assetToCreate as Asset).pipe(
+      mergeMap((createdAsset) => {
+        if (assignedCustomerIds?.length) {
+          return  this.assetService.addAssetCustomers(createdAsset.id.id, assignedCustomerIds).pipe(
+            mergeMap((createdAsset) => {
+              return this.assetService.getAssetInfo(createdAsset.id.id);
+            })
+          );
+        }
+        return this.assetService.getAssetInfo(createdAsset.id.id); // Return the original createdAsset directly if no customers to add
+      }),
+    );
   }
 }
