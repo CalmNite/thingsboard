@@ -25,7 +25,7 @@ import { Device, DeviceProfileInfo, DeviceTransportType } from '@shared/models/d
 import { MatStepper, StepperOrientation } from '@angular/material/stepper';
 import { EntityType } from '@shared/models/entity-type.models';
 import { Observable, throwError } from 'rxjs';
-import { catchError, map } from 'rxjs/operators';
+import { catchError, map, mergeMap } from 'rxjs/operators';
 import { DeviceService } from '@core/http/device.service';
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
 import { BreakpointObserver } from '@angular/cdk/layout';
@@ -85,6 +85,8 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
         description: ['']
       }
     );
+
+    this.deviceWizardFormGroup.addControl('assignedCustomerIds', this.fb.control([]));
 
     this.credentialsFormGroup  = this.fb.group({
         credential: []
@@ -149,6 +151,21 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
       customerId: this.deviceWizardFormGroup.get('customerId').value
     };
     if (this.addDeviceWizardStepper.steps.last.completed || this.addDeviceWizardStepper.selectedIndex > 0) {
+      if (this.deviceWizardFormGroup.get('assignedCustomerIds').value.length){
+        return this.deviceService.saveDeviceWithCredentials(deepTrim(device), deepTrim(this.credentialsFormGroup.value.credential)).pipe(
+          mergeMap((savedDevice) => {
+            return this.deviceService.addDeviceCustomers(savedDevice.id.id, this.deviceWizardFormGroup.get('assignedCustomerIds').value)
+          }),
+          catchError((e: HttpErrorResponse) => {
+            if (e.error.message.includes('Device credentials')) {
+              this.addDeviceWizardStepper.selectedIndex = 1;
+            } else {
+              this.addDeviceWizardStepper.selectedIndex = 0;
+            }
+            return throwError(() => e);
+          })
+        );
+      }
       return this.deviceService.saveDeviceWithCredentials(deepTrim(device), deepTrim(this.credentialsFormGroup.value.credential)).pipe(
         catchError((e: HttpErrorResponse) => {
           if (e.error.message.includes('Device credentials')) {
@@ -157,6 +174,17 @@ export class DeviceWizardDialogComponent extends DialogComponent<DeviceWizardDia
             this.addDeviceWizardStepper.selectedIndex = 0;
           }
           return throwError(() => e);
+        })
+      );
+    }
+    if (this.deviceWizardFormGroup.get('assignedCustomerIds').value.length){
+      return this.deviceService.saveDevice(deepTrim(device)).pipe(
+        mergeMap((savedDevice) => {
+          return this.deviceService.addDeviceCustomers(savedDevice.id.id, this.deviceWizardFormGroup.get('assignedCustomerIds').value)
+        }),
+        catchError(e => {
+          this.addDeviceWizardStepper.selectedIndex = 0;
+          return throwError(e);
         })
       );
     }

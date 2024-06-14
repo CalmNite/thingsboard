@@ -74,12 +74,11 @@
               {{ 'device.overwrite-activity-time' | translate }}
             </mat-slide-toggle>
           </div>
-          <tb-entity-autocomplete
-            useFullEntityId
-            formControlName="customerId"
-            labelText="device.assign-to-customer"
-            [entityType]="entityType.CUSTOMER">
-          </tb-entity-autocomplete>
+          <tb-entity-list
+        formControlName="assignedCustomerIds"
+        labelText="{{ 'device.assigned-customers' | translate }}"
+        [entityType]="entityType.CUSTOMER">
+      </tb-entity-list>
           <mat-form-field class="mat-block" subscriptSizing="dynamic">
             <mat-label translate>device.description</mat-label>
             <textarea matInput formControlName="description" rows="1"></textarea>
